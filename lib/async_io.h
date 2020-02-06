@@ -14,9 +14,9 @@
 
 namespace ael {
 
-#define READ_FLAG 0x1
-#define WRITE_FLAG 0x2
-#define STREAM_FLAG 0x4
+#define READ_FLAG 		0x1
+#define WRITE_FLAG 		0x2
+#define STREAM_FLAG 	0x4
 
 class AsyncIO {
 public:

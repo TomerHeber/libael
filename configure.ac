@@ -13,7 +13,18 @@ AC_CONFIG_FILES([
 	lib/Makefile
 ])
 
-AM_INIT_AUTOMAKE([subdir-objects])
+AC_CANONICAL_HOST
+
+build_linux=no
+
+case "${host_os}" in
+    linux*)
+        build_linux=yes
+        ;;  
+    *)
+        AC_MSG_ERROR(["OS $host_os is not supported"])
+        ;;
+esac
 
 AX_HAVE_EPOLL(
 	[AX_CONFIG_FEATURE_ENABLE(epoll)],
@@ -24,6 +35,10 @@ AX_CONFIG_FEATURE(
 	[HAVE_EPOLL], [This platform supports epoll(7).],
 	[enable_epoll="yes"], [enable_epoll="no"]
 )
-AM_CONDITIONAL(EPOLL_BACKEND, [test "x$enable_epoll" = "xyes"])
+
+AM_INIT_AUTOMAKE([subdir-objects])
+
+AM_CONDITIONAL([EPOLL_BACKEND], [test "x$enable_epoll" = "xyes"])
+AM_CONDITIONAL([LINUX], [test "x$build_linux" = "xyes"])
 
 AC_OUTPUT

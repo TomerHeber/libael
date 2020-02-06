@@ -5,8 +5,8 @@
  *      Author: tomer
  */
 
-#ifndef LIB_ASYNC_IO_EPOLL_H_
-#define LIB_ASYNC_IO_EPOLL_H_
+#ifndef LIB_LINUX_EPOLL_H_
+#define LIB_LINUX_EPOLL_H_
 
 #include "async_io.h"
 
@@ -27,16 +27,20 @@ private:
 	virtual void Add(std::shared_ptr<Event> event);
 	virtual void Remove(std::shared_ptr<Event> event);
 
+	void AddOrRemoveHelper(std::shared_ptr<Event> event, std::vector<std::shared_ptr<Event>> &events_pending);
 	void AddEvents();
 	void RemoveEvents();
+	void AddFinalize(std::shared_ptr<Event> event);
+	void RemoveFinalize(std::shared_ptr<Event> event);
 
 	int epoll_fd_;
 	int pending_fd_;
 	std::mutex lock_;
-	std::vector<std::shared_ptr<Event>> events_pending_close;
-	std::vector<std::shared_ptr<Event>> events_pending_add;
+	std::vector<std::shared_ptr<Event>> events_pending_add_;
+	std::vector<std::shared_ptr<Event>> events_pending_remove_;
+	std::unordered_map<int, std::shared_ptr<Event>> events_;
 };
 
 }
 
-#endif /* LIB_ASYNC_IO_EPOLL_H_ */
+#endif /* LIB_LINUX_EPOLL_H_ */

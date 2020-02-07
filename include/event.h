@@ -14,6 +14,14 @@
 
 namespace ael {
 
+class NewConnectionHandler {
+public:
+	NewConnectionHandler() {}
+	virtual ~NewConnectionHandler() {}
+
+	virtual void HandleNewConnection(int fd) = 0;
+};
+
 class EventHandler {
 public:
 	EventHandler();

@@ -134,6 +134,12 @@ void EPoll::Remove(std::shared_ptr<Event> event) {
 	AddOrRemoveHelper(event, events_pending_remove_);
 }
 
+void EPoll::Wakeup() {
+	if (eventfd_write(pending_fd_, 1) != 0) {
+		throw std::system_error(errno, std::system_category(), "eventfd_write failed");
+	}
+}
+
 void EPoll::AddOrRemoveHelper(std::shared_ptr<Event> event, std::vector<std::shared_ptr<Event>> &events_pending) {
 	// Switch the event to be executed in the context of the EventLoop thread.
 
@@ -191,9 +197,12 @@ void EPoll::RemoveFinalize(std::shared_ptr<Event> event) {
 		throw std::system_error(errno, std::system_category(), "epoll_ctl - EPOLL_CTL_DEL - failed");
 	}
 
-	close(event->GetFD());
-
 	LOG_TRACE("epoll removing event finalize - complete epoll_fd_=" << epoll_fd_ << " fd=" << event->GetFD() << " id=" << event->GetID());
+}
+
+Event::~Event() {
+	LOG_TRACE("event is destroyed id=" << id_);
+	close(fd_);
 }
 
 }

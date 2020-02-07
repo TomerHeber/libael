@@ -27,6 +27,7 @@ public:
 
 	virtual void Add(std::shared_ptr<Event> event) = 0;
 	virtual void Remove(std::shared_ptr<Event> event) = 0;
+	virtual void Wakeup() = 0;
 
 	virtual void Process() = 0;
 };

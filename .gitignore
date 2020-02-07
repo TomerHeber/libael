@@ -25,3 +25,6 @@ m4/lt~obsolete.m4
 ltmain.sh
 compile
 depcomp
+libael-*/
+test-driver
+

@@ -24,10 +24,6 @@ Event::Event(std::weak_ptr<EventLoop> event_loop, std::weak_ptr<EventHandler> ev
 	LOG_TRACE("event is created id=" << id_);
 }
 
-Event::~Event() {
-	LOG_TRACE("event is destroyed id=" << id_);
-}
-
 void Event::Close() {
 	auto event_loop = event_loop_.lock();
 	if (event_loop) {

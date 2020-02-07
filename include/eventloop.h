@@ -19,7 +19,7 @@
 
 namespace ael {
 
-class EventLoop : std::enable_shared_from_this<EventLoop> {
+class EventLoop : public std::enable_shared_from_this<EventLoop> {
 public:
 	static std::shared_ptr<EventLoop> Create();
 

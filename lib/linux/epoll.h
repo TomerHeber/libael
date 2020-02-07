@@ -26,6 +26,7 @@ private:
 	virtual void Process();
 	virtual void Add(std::shared_ptr<Event> event);
 	virtual void Remove(std::shared_ptr<Event> event);
+	virtual void Wakeup();
 
 	void AddOrRemoveHelper(std::shared_ptr<Event> event, std::vector<std::shared_ptr<Event>> &events_pending);
 	void AddEvents();

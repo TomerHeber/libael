@@ -16,13 +16,13 @@ namespace ael {
 namespace log {
 
 enum class LogLevel {
-	Trace = 	1,
-	Debug = 	2,
-	Info = 		3,
-	Warn = 		4,
-	Error = 	5,
-	Critical =  6,
-	None = 		7
+	Trace = 	0,
+	Debug = 	1,
+	Info = 		2,
+	Warn = 		3,
+	Error = 	4,
+	Critical =  5,
+	None = 		6
 };
 
 class Sink {
@@ -38,11 +38,11 @@ protected:
 	Sink() {}
 };
 
-#define LOG_LEVEL(log_level, msg) if (log::Sink::sink_ != nullptr && log_level <= log::Sink::log_level_) { 		\
-	std::ostringstream oss;																				\
-	oss << msg;																							\
-	log::Sink::sink_->Log(log_level, oss.str());														\
-}																										\
+#define LOG_LEVEL(log_level, msg) if (log::Sink::sink_ != nullptr && log_level >= log::Sink::log_level_) { 		\
+	std::ostringstream oss;																						\
+	oss << msg;																									\
+	log::Sink::sink_->Log(log_level, oss.str());																\
+}																												\
 
 #define LOG_TRACE(msg) LOG_LEVEL(log::LogLevel::Trace, msg)
 #define LOG_DEBUG(msg) LOG_LEVEL(log::LogLevel::Debug, msg)

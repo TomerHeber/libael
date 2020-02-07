@@ -13,9 +13,6 @@
 
 namespace ael {
 
-std::mutex table_lock;
-std::unordered_set<std::shared_ptr<EventLoop>> table;
-
 EventLoop::EventLoop() : async_io_(AsyncIO::Create()), stop_(false) {
 	LOG_TRACE("event loop is being created");
 }
@@ -23,6 +20,7 @@ EventLoop::EventLoop() : async_io_(AsyncIO::Create()), stop_(false) {
 EventLoop::~EventLoop() {
 	LOG_TRACE("event loop is destroyed");
 	stop_ = true;
+	async_io_->Wakeup(); // Wakeup for the loop to detect stop.
 	thread_->join();
 	LOG_TRACE("event loop is destroyed - thread join complete");
 }
@@ -30,12 +28,8 @@ EventLoop::~EventLoop() {
 std::shared_ptr<EventLoop> EventLoop::Create() {
 	std::shared_ptr<EventLoop> event_loop(new EventLoop);
 
-	table_lock.lock();
-	table.insert(event_loop);
-	table_lock.unlock();
-
 	LOG_TRACE("event loop is being created - starting thread");
-	event_loop->thread_ = std::make_unique<std::thread>(&EventLoop::Run, event_loop);
+	event_loop->thread_ = std::make_unique<std::thread>(&EventLoop::Run, event_loop.get());
 
 	return event_loop;
 }
@@ -54,6 +48,8 @@ void EventLoop::Run() {
 		it.second->Close();
 	}
 	lock_.unlock();
+
+	async_io_->Wakeup(); // Wakeup again in case there is nothing to process.
 
 	async_io_->Process();
 
@@ -82,7 +78,7 @@ void EventLoop::Remove(std::uint64_t id) {
 }
 
 std::shared_ptr<Event> EventLoop::CreateEvent(std::shared_ptr<EventHandler> event_handler, int fd, int flags) {
-	std::shared_ptr<Event> event(new Event(this->shared_from_this(), event_handler, fd, flags));
+	std::shared_ptr<Event> event(new Event(shared_from_this(), event_handler, fd, flags));
 
 	LOG_DEBUG("creating and adding an event id=" << event->GetID() << " fd=" << event->GetFD());
 

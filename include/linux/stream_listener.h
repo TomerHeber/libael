@@ -23,7 +23,6 @@ namespace ael {
 
 class StreamListener: public EventHandler {
 public:
-
 	virtual ~StreamListener() {}
 
 	static std::shared_ptr<StreamListener> Create(std::shared_ptr<NewConnectionHandler> new_connection_handler, const std::string &ip_addr, in_port_t port);

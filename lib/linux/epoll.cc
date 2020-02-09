@@ -13,8 +13,8 @@
 
 #include <unistd.h>
 #include <errno.h>
-#include <system_error>
 
+#include <system_error>
 
 #define MAX_EVENTS 32
 
@@ -35,7 +35,7 @@ EPoll::EPoll() {
 		throw std::system_error(errno, std::system_category(), "eventfd failed");
 	}
 
-	epoll_event pending_event;
+	epoll_event pending_event = {};
 	pending_event.events = EPOLLET | EPOLLIN;
 	pending_event.data.fd = pending_fd_;
 
@@ -88,7 +88,7 @@ void EPoll::Process() {
 		}
 
 		auto event = event_iterator->second;
-		auto event_handler = event->GetEventHandler();
+		auto event_handler = event->GetEventHandler().lock();
 		if (event_handler) {
 			LOG_TRACE("epoll events for event - epoll_fd_=" << epoll_fd_ << " event_e.events=" << event_e.events << " event_fd=" << event_fd);
 			event_handler->Handle(event, event_e.events);
@@ -156,10 +156,22 @@ void EPoll::AddOrRemoveHelper(std::shared_ptr<Event> event, std::vector<std::sha
 
 void EPoll::AddFinalize(std::shared_ptr<Event> event) {
 	auto flags = event->GetFlags();
+	auto fd = event->GetFD();
+	auto id = event->GetID();
 
-	LOG_TRACE("epoll adding event finalize epoll_fd_=" << epoll_fd_ << " fd=" << event->GetFD() << " id=" << event->GetID());
+	LOG_TRACE("epoll adding event finalize epoll_fd_=" << epoll_fd_ << " fd=" << fd << " flags=" << flags << " id=" << id);
 
-	epoll_event e_event;
+	if (fd == -1) {
+		// No descriptor. Just call handle and exit.
+		auto event_handler = event->GetEventHandler().lock();
+		if (event_handler) {
+			LOG_TRACE("handling an event with no fd epoll_fd_=" << epoll_fd_ << " id=" << id);
+			event_handler->Handle(event, 0);
+		}
+		return;
+	}
+
+	epoll_event e_event = {};
 
 	e_event.events = EPOLLET;
 
@@ -175,21 +187,29 @@ void EPoll::AddFinalize(std::shared_ptr<Event> event) {
 		e_event.events |= EPOLLRDHUP;
 	}
 
-	e_event.data.fd = event->GetFD();
+	e_event.data.fd = fd;
 
-	events_[event->GetFD()] = event;
+	events_[fd] = event;
 
 	if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, event->GetFD(), &e_event) != 0) {
 		throw std::system_error(errno, std::system_category(), "epoll_ctl - EPOLL_CTL_ADD - failed");
 	}
 
-	LOG_TRACE("epoll adding event finalize - complete epoll_fd_=" << epoll_fd_ << " fd=" << event->GetFD() << " id=" << event->GetID());
+	LOG_TRACE("epoll adding event finalize - complete epoll_fd_=" << epoll_fd_ << " fd=" << fd << " id=" << id);
 }
 
 void EPoll::RemoveFinalize(std::shared_ptr<Event> event) {
-	LOG_TRACE("epoll removing event finalize epoll_fd_=" << epoll_fd_ << " fd=" << event->GetFD() << " id=" << event->GetID());
+	auto fd = event->GetFD();
+	auto id = event->GetID();
 
-	if (events_.erase(event->GetFD()) != 1) {
+	LOG_TRACE("epoll removing event finalize epoll_fd_=" << epoll_fd_ << " fd=" << fd << " id=" << id);
+
+	if (fd == -1) {
+		// No descriptor. Just exit.
+		return;
+	}
+
+	if (events_.erase(fd) != 1) {
 		throw "event not found";
 	}
 
@@ -197,12 +217,15 @@ void EPoll::RemoveFinalize(std::shared_ptr<Event> event) {
 		throw std::system_error(errno, std::system_category(), "epoll_ctl - EPOLL_CTL_DEL - failed");
 	}
 
-	LOG_TRACE("epoll removing event finalize - complete epoll_fd_=" << epoll_fd_ << " fd=" << event->GetFD() << " id=" << event->GetID());
+	LOG_TRACE("epoll removing event finalize - complete epoll_fd_=" << epoll_fd_ << " fd=" << fd << " id=" << id);
 }
 
 Event::~Event() {
 	LOG_TRACE("event is destroyed id=" << id_);
-	close(fd_);
+
+	if (fd_ >= 0) {
+		close(fd_);
+	}
 }
 
 }

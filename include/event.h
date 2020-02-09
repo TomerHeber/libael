@@ -22,6 +22,8 @@ public:
 	virtual void HandleNewConnection(int fd) = 0;
 };
 
+class EventLoop;
+
 class EventHandler {
 public:
 	EventHandler();
@@ -32,10 +34,10 @@ public:
 private:
 	std::shared_ptr<class Event> event_;
 
-	virtual int GetFlags() const = 0;
-	virtual int GetFD() const = 0;
+	virtual int GetFlags() const { return 0; }
+	virtual int GetFD() const { return -1; }
 
-	friend class EventLoop;
+	friend EventLoop;
 };
 
 class Event {
@@ -45,13 +47,14 @@ public:
 	std::uint64_t GetID() const { return id_; }
 	int GetFD() const { return fd_; }
 	int GetFlags() const { return flags_; }
-	std::shared_ptr<EventHandler> GetEventHandler() const { return event_handler_.lock(); }
+	std::weak_ptr<EventHandler> GetEventHandler() const { return event_handler_; }
+	std::weak_ptr<EventLoop> GetEventLoop() const { return event_loop_; }
 
 	void Close();
 	void Ready();
 
 private:
-	Event(std::weak_ptr<class EventLoop>, std::weak_ptr<EventHandler> event_handler, int fd, int flags);
+	Event(std::weak_ptr<EventLoop>, std::weak_ptr<EventHandler> event_handler, int fd, int flags);
 
 	std::uint64_t id_;
 	std::weak_ptr<EventLoop> event_loop_;
@@ -60,7 +63,7 @@ private:
 	int flags_;
 	std::once_flag close_flag_;
 
-	friend class EventLoop;
+	friend EventLoop;
 };
 
 }

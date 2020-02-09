@@ -1,4 +1,4 @@
-tcp_test 
-tcp_test.log
-tcp_test.trs
-test-suite.log
+tcp_test
+execute_test 
+*.log
+*.trs

@@ -105,4 +105,18 @@ void EventLoop::Attach(std::shared_ptr<EventHandler> event_handler) {
 	LOG_TRACE("event handler attaching to event loop - event handler attached event_id=" << event_handler->event_->GetID() << " event_fd=" << event_handler->event_->GetFD());
 }
 
+void EventLoop::AttachInternal(std::shared_ptr<EventHandler> event_handler) {
+	lock_.lock();
+	internal_event_handlers_.insert(event_handler);
+	lock_.unlock();
+	Attach(event_handler);
+}
+
+void EventLoop::RemoveInternal(std::shared_ptr<EventHandler> event_handler) {
+	std::lock_guard<std::mutex> guard(lock_);
+	if (internal_event_handlers_.erase(event_handler) != 1) {
+		throw "event handler found";
+	}
+}
+
 }

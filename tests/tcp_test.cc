@@ -17,14 +17,12 @@
 #include <chrono>
 #include <random>
 
-
 using namespace ael;
 using namespace std;
 
 static random_device rd;
 static mt19937 mt(rd());
 static uniform_int_distribution<int> uniform_port_dist(10000, 60000);
-
 
 class NewConnectionHandlerCount : public NewConnectionHandler {
 public:
@@ -50,7 +48,6 @@ private:
 	int count_;
 	condition_variable cond_;
 	mutex mut_;
-
 };
 
 TEST(Listener, Create)
@@ -97,7 +94,7 @@ TEST(Listener, OneConnection)
 	ASSERT_TRUE(new_connection_handler->Wait());
 }
 
-TEST(Listener, ThreeConnection)
+TEST(Listener, ThreeConnections)
 {
 	in_port_t port = uniform_port_dist(mt);
 
@@ -121,6 +118,23 @@ TEST(Listener, ThreeConnection)
 	ASSERT_TRUE(new_connection_handler->Wait());
 }
 
+class EFG {
+public:
+	EFG(const string &i) : i_(i) {}
+
+	void Do1(const string &j) {
+		cout << i_ << " " << j << endl;
+	}
+
+private:
+	string i_;
+};
+
+TEST(Listener, Dummy) {
+	auto event_loop = EventLoop::Create();
+	auto efg = shared_ptr<EFG>(new EFG("Hello!!!"));
+	event_loop->Execute(&EFG::Do1, efg, " boooo!!!!");
+}
 
 int main(int argc, char **argv)
 {
@@ -130,4 +144,3 @@ int main(int argc, char **argv)
 
     return RUN_ALL_TESTS();
 }
-

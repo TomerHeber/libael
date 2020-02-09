@@ -11,8 +11,6 @@
 #include "config.h"
 #include "log.h"
 
-#include <cstring>
-
 #include <unistd.h>
 #include <string.h>
 #include <fcntl.h>
@@ -36,8 +34,7 @@ std::shared_ptr<StreamListener> StreamListener::Create(std::shared_ptr<NewConnec
 	LOG_INFO("creating a stream listener ip_addr=" << ip_addr << " port=" << port);
 
 	// Try IPv4.
-	sockaddr_in in4;
-	std::memset(&in4, 0, sizeof(in4));
+	sockaddr_in in4 = {};
 	if (inet_pton(AF_INET, ip_addr.c_str(), &in4.sin_addr) == 1) {
 		in4.sin_family = AF_INET;
 		in4.sin_port = htons(port);
@@ -48,8 +45,7 @@ std::shared_ptr<StreamListener> StreamListener::Create(std::shared_ptr<NewConnec
 	LOG_DEBUG("inet_pton for IPv6 failed ip_addr=" << ip_addr << " errno=" << errno);
 
 	// Try IPv6.
-	sockaddr_in6 in6;
-	std::memset(&in6, 0, sizeof(in6));
+	sockaddr_in6 in6 = {};
 	if (inet_pton(AF_INET6, ip_addr.c_str(), &in6.sin6_addr) == 1) {
 		in6.sin6_family = AF_INET6;
 		in6.sin6_port = htons(port);

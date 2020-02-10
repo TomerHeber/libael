@@ -14,33 +14,30 @@
 
 namespace ael {
 
-class NewConnectionHandler {
-public:
-	NewConnectionHandler() {}
-	virtual ~NewConnectionHandler() {}
-
-	virtual void HandleNewConnection(int fd) = 0;
-};
-
 class EventLoop;
+class Event;
 
 class EventHandler {
 public:
-	EventHandler();
+	EventHandler(int fd = -1);
 	virtual ~EventHandler();
 
-	virtual void Handle(std::shared_ptr<class Event> event, std::uint32_t events) = 0;
+	virtual void Handle(std::uint32_t events) = 0;
+
+	int AcquireFileDescriptor();
+
+protected:
+	std::shared_ptr<Event> event_;
 
 private:
-	std::shared_ptr<class Event> event_;
+	int fd_;
 
 	virtual int GetFlags() const { return 0; }
-	virtual int GetFD() const { return -1; }
 
 	friend EventLoop;
 };
 
-class Event {
+class Event : public std::enable_shared_from_this<Event> {
 public:
 	virtual ~Event();
 
@@ -51,7 +48,7 @@ public:
 	std::weak_ptr<EventLoop> GetEventLoop() const { return event_loop_; }
 
 	void Close();
-	void Ready();
+	void Ready(int flags);
 
 private:
 	Event(std::weak_ptr<EventLoop>, std::weak_ptr<EventHandler> event_handler, int fd, int flags);

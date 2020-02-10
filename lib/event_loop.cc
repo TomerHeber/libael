@@ -7,9 +7,9 @@
 
 #include <unordered_set>
 
-#include "eventloop.h"
 #include "log.h"
 #include "async_io.h"
+#include "event_loop.h"
 
 namespace ael {
 
@@ -77,6 +77,14 @@ void EventLoop::Remove(std::uint64_t id) {
 	async_io_->Remove(event);
 }
 
+void EventLoop::Ready(std::shared_ptr<Event> event, int flags) {
+	auto event_id = event->GetID();
+
+	LOG_DEBUG("readying an event id=" << event_id << " flags=" << flags);
+
+	async_io_->Ready(event, flags);
+}
+
 std::shared_ptr<Event> EventLoop::CreateEvent(std::shared_ptr<EventHandler> event_handler, int fd, int flags) {
 	std::shared_ptr<Event> event(new Event(shared_from_this(), event_handler, fd, flags));
 
@@ -96,7 +104,7 @@ void EventLoop::Attach(std::shared_ptr<EventHandler> event_handler) {
 		throw "event handler already attached";
 	}
 
-	event_handler->event_ = CreateEvent(event_handler, event_handler->GetFD(), event_handler->GetFlags());
+	event_handler->event_ = CreateEvent(event_handler, event_handler->AcquireFileDescriptor(), event_handler->GetFlags());
 
 	LOG_DEBUG("event handler attaching to event loop event_id=" << event_handler->event_->GetID() << " event_fd=" << event_handler->event_->GetFD());
 
@@ -116,6 +124,34 @@ void EventLoop::RemoveInternal(std::shared_ptr<EventHandler> event_handler) {
 	std::lock_guard<std::mutex> guard(lock_);
 	if (internal_event_handlers_.erase(event_handler) != 1) {
 		throw "event handler found";
+	}
+}
+
+EventLoop::ExecuteEventHandler::ExecuteEventHandler(std::function<void()> func, std::weak_ptr<void> instance) :
+		func_(func),
+		instance_(instance) {
+	LOG_TRACE("execute event handler is created");
+}
+
+EventLoop::ExecuteEventHandler::~ExecuteEventHandler() {
+	LOG_TRACE("execute event handler is destroyed");
+}
+
+void EventLoop::ExecuteEventHandler::Handle(std::uint32_t events) {
+	std::ignore = events;
+
+	auto instance = instance_.lock();
+	if (instance) {
+		func_();
+	}
+
+	event_->Close();
+
+	auto event_handler = event_->GetEventHandler().lock();
+	auto event_loop = event_->GetEventLoop().lock();
+
+	if (event_handler && event_loop) {
+		event_loop->RemoveInternal(event_handler);
 	}
 }
 

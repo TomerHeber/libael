@@ -5,9 +5,11 @@
  *      Author: tomer
  */
 
+#include "event_loop.h"
 #include "event.h"
-#include "eventloop.h"
 #include "log.h"
+
+#include <unistd.h>
 
 #include <atomic>
 
@@ -24,6 +26,14 @@ Event::Event(std::weak_ptr<EventLoop> event_loop, std::weak_ptr<EventHandler> ev
 	LOG_TRACE("event is created id=" << id_);
 }
 
+Event::~Event() {
+	LOG_TRACE("event is destroyed id=" << id_);
+
+	if (fd_ >= 0) {
+		close(fd_);
+	}
+}
+
 void Event::Close() {
 	auto event_loop = event_loop_.lock();
 	if (event_loop) {
@@ -31,12 +41,24 @@ void Event::Close() {
 	}
 }
 
-void Event::Ready() {
-	//TODO
+void Event::Ready(int flags) {
+	auto event_loop = event_loop_.lock();
+	if (event_loop) {
+		event_loop->Ready(shared_from_this(), flags);
+	} else {
+		LOG_WARN("event ready called but event loop deleted id=" << id_ << " fd=" << fd_);
+	}
 }
 
-EventHandler::EventHandler() {
-	LOG_TRACE("event handler is created");
+EventHandler::EventHandler(int fd) : fd_(fd) {
+	LOG_TRACE("event handler is created fd=" << fd);
+}
+
+int EventHandler::AcquireFileDescriptor() {
+	LOG_TRACE("event acquiring descriptor fd=" << fd_);
+	auto fd = fd_;
+	fd_ = -1;
+	return fd;
 }
 
 EventHandler::~EventHandler() {
@@ -44,6 +66,9 @@ EventHandler::~EventHandler() {
 	if (event_) {
 		LOG_TRACE("event handler is destroyed - calling event_->Close() event_id=" << event_->GetID() << " event_fd=" << event_->GetFD());
 		event_->Close();
+	} else if (fd_ >= 0) {
+		LOG_TRACE("event handler is destroyed - event never attached closing file descriptor fd_=" << fd_);
+		close(fd_);
 	}
 }
 

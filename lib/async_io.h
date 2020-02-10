@@ -9,6 +9,7 @@
 #define LIB_ASYNC_IO_H_
 
 #include <memory>
+#include <unordered_map>
 
 #include "event.h"
 
@@ -25,11 +26,11 @@ public:
 
 	static std::unique_ptr<AsyncIO> Create();
 
-	virtual void Add(std::shared_ptr<Event> event) = 0;
-	virtual void Remove(std::shared_ptr<Event> event) = 0;
-	virtual void Wakeup() = 0;
-
-	virtual void Process() = 0;
+	virtual void Add(std::shared_ptr<Event> event) = 0; // Add (register) an event.
+	virtual void Ready(std::shared_ptr<Event> event, int flags) = 0; // Makes (an already registered) event ready (if no longer registers - should ignore).
+	virtual void Remove(std::shared_ptr<Event> event) = 0; // Remove (unregister) an event.
+	virtual void Wakeup() = 0; // Unblock "Process()".
+	virtual void Process() = 0; // Process() "registered" events.
 };
 
 }

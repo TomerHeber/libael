@@ -91,7 +91,7 @@ void EPoll::Process() {
 		auto event_handler = event->GetEventHandler().lock();
 		if (event_handler) {
 			LOG_TRACE("epoll events for event - epoll_fd_=" << epoll_fd_ << " event_e.events=" << event_e.events << " event_fd=" << event_fd);
-			event_handler->Handle(event, event_e.events);
+			event_handler->Handle(event_e.events);
 		}
 	}
 }
@@ -134,6 +134,10 @@ void EPoll::Remove(std::shared_ptr<Event> event) {
 	AddOrRemoveHelper(event, events_pending_remove_);
 }
 
+void EPoll::Ready(std::shared_ptr<Event> event, int flags) {
+ //TODO
+}
+
 void EPoll::Wakeup() {
 	if (eventfd_write(pending_fd_, 1) != 0) {
 		throw std::system_error(errno, std::system_category(), "eventfd_write failed");
@@ -166,7 +170,7 @@ void EPoll::AddFinalize(std::shared_ptr<Event> event) {
 		auto event_handler = event->GetEventHandler().lock();
 		if (event_handler) {
 			LOG_TRACE("handling an event with no fd epoll_fd_=" << epoll_fd_ << " id=" << id);
-			event_handler->Handle(event, 0);
+			event_handler->Handle(0);
 		}
 		return;
 	}
@@ -218,14 +222,6 @@ void EPoll::RemoveFinalize(std::shared_ptr<Event> event) {
 	}
 
 	LOG_TRACE("epoll removing event finalize - complete epoll_fd_=" << epoll_fd_ << " fd=" << fd << " id=" << id);
-}
-
-Event::~Event() {
-	LOG_TRACE("event is destroyed id=" << id_);
-
-	if (fd_ >= 0) {
-		close(fd_);
-	}
 }
 
 }

@@ -1,4 +1,5 @@
 tcp_test
 execute_test 
+data_view_test
 *.log
 *.trs

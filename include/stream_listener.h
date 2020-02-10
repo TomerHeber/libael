@@ -21,6 +21,14 @@
 
 namespace ael {
 
+class NewConnectionHandler {
+public:
+	NewConnectionHandler() {}
+	virtual ~NewConnectionHandler() {}
+
+	virtual void HandleNewConnection(int fd) = 0;
+};
+
 class StreamListener: public EventHandler {
 public:
 	virtual ~StreamListener() {}
@@ -28,16 +36,12 @@ public:
 	static std::shared_ptr<StreamListener> Create(std::shared_ptr<NewConnectionHandler> new_connection_handler, const std::string &ip_addr, in_port_t port);
 
 private:
-	StreamListener(std::shared_ptr<NewConnectionHandler> new_connection_handler, int domain, const sockaddr *addr, socklen_t addr_size);
+	StreamListener(std::shared_ptr<NewConnectionHandler> new_connection_handler, int fd);
 
-	virtual void Handle(std::shared_ptr<class Event> event, std::uint32_t events);
+	virtual void Handle(std::uint32_t events);
 	virtual int GetFlags() const;
-	virtual int GetFD() const;
 
 	std::weak_ptr<NewConnectionHandler> new_connection_handler_;
-	int domain_;
-	std::unique_ptr<std::uint8_t[]> addr_;
-	socklen_t addr_size_;
 };
 
 }

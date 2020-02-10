@@ -8,9 +8,9 @@
 #include "gtest/gtest.h"
 
 #include "log.h"
-#include "eventloop.h"
 #include "helpers.h"
-#include "linux/stream_listener.h"
+#include "stream_listener.h"
+#include "event_loop.h"
 
 #include <mutex>
 #include <condition_variable>
@@ -52,14 +52,13 @@ private:
 
 TEST(Listener, Create)
 {
+	in_port_t port = uniform_port_dist(mt);
+
 	EXPECT_ANY_THROW(StreamListener::Create(nullptr, "434", 4));
 	EXPECT_ANY_THROW(StreamListener::Create(nullptr, "fsdf", 4));
 	EXPECT_ANY_THROW(StreamListener::Create(nullptr, "fsdfsd", 4));
-	EXPECT_NO_THROW(StreamListener::Create(nullptr, "0.0.0.0", 80));
-	EXPECT_NO_THROW(StreamListener::Create(nullptr, "127.0.0.1", 443));
-	EXPECT_NO_THROW(StreamListener::Create(nullptr, "::1", 80));
-	EXPECT_NO_THROW(StreamListener::Create(nullptr, "::0", 8080));
-	EXPECT_NO_THROW(StreamListener::Create(nullptr, "2001:0db8:85a3:0000:0000:8a2e:0370:7334", 8080));
+	EXPECT_NO_THROW(StreamListener::Create(nullptr, "127.0.0.1", port));
+	EXPECT_NO_THROW(StreamListener::Create(nullptr, "::1", port));
 }
 
 TEST(Listener, CreateAndAttach)
@@ -116,24 +115,6 @@ TEST(Listener, ThreeConnections)
 	close(connection3_fd);
 
 	ASSERT_TRUE(new_connection_handler->Wait());
-}
-
-class EFG {
-public:
-	EFG(const string &i) : i_(i) {}
-
-	void Do1(const string &j) {
-		cout << i_ << " " << j << endl;
-	}
-
-private:
-	string i_;
-};
-
-TEST(Listener, Dummy) {
-	auto event_loop = EventLoop::Create();
-	auto efg = shared_ptr<EFG>(new EFG("Hello!!!"));
-	event_loop->Execute(&EFG::Do1, efg, " boooo!!!!");
 }
 
 int main(int argc, char **argv)

@@ -5,7 +5,7 @@
  *      Author: tomer
  */
 
-#include "linux/stream_listener.h"
+#include "stream_listener.h"
 
 #include "async_io.h"
 #include "config.h"
@@ -21,57 +21,19 @@
 
 namespace ael {
 
-StreamListener::StreamListener(std::shared_ptr<NewConnectionHandler> new_connection_handler, int domain, const sockaddr *addr, socklen_t addr_size) :
-		new_connection_handler_(new_connection_handler),
-		domain_(domain),
-		addr_(std::make_unique<std::uint8_t[]>(addr_size)),
-		addr_size_(addr_size)
-{
-	memcpy(addr_.get(), addr, addr_size);
-}
+StreamListener::StreamListener(std::shared_ptr<NewConnectionHandler> new_connection_handler, int fd) :
+		EventHandler(fd),
+		new_connection_handler_(new_connection_handler) {}
 
-std::shared_ptr<StreamListener> StreamListener::Create(std::shared_ptr<NewConnectionHandler> new_connection_handler, const std::string &ip_addr, in_port_t port) {
-	LOG_INFO("creating a stream listener ip_addr=" << ip_addr << " port=" << port);
+static int Listen(int domain, const sockaddr *addr, socklen_t addr_size) {
+	LOG_TRACE("creating descriptor for listener");
 
-	// Try IPv4.
-	sockaddr_in in4 = {};
-	if (inet_pton(AF_INET, ip_addr.c_str(), &in4.sin_addr) == 1) {
-		in4.sin_family = AF_INET;
-		in4.sin_port = htons(port);
-
-		return std::shared_ptr<StreamListener>(new StreamListener(new_connection_handler, AF_INET, reinterpret_cast<sockaddr*>(&in4), sizeof(in4)));
-	}
-
-	LOG_DEBUG("inet_pton for IPv6 failed ip_addr=" << ip_addr << " errno=" << errno);
-
-	// Try IPv6.
-	sockaddr_in6 in6 = {};
-	if (inet_pton(AF_INET6, ip_addr.c_str(), &in6.sin6_addr) == 1) {
-		in6.sin6_family = AF_INET6;
-		in6.sin6_port = htons(port);
-
-		return std::shared_ptr<StreamListener>(new StreamListener(new_connection_handler, AF_INET6, reinterpret_cast<sockaddr*>(&in6), sizeof(in6)));
-	}
-
-	LOG_DEBUG("inet_pton for IPv6 failed ip_addr=" << ip_addr << " errno=" << errno);
-
-	throw "invalid host - inet_pton failed for both IPv4 and IPv6";
-}
-
-
-int StreamListener::GetFlags() const {
-	return READ_FLAG;
-}
-
-int StreamListener::GetFD() const {
-	LOG_TRACE("listener GetFD is called")
-
-	auto fd = socket(domain_, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
+	auto fd = socket(domain, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
 	if (fd < 0) {
 		throw std::system_error(errno, std::system_category(), "socket failed");
 	}
 
-	if (bind(fd, reinterpret_cast<sockaddr*>(addr_.get()), addr_size_) != 0) {
+	if (bind(fd, addr, addr_size) != 0) {
 		throw std::system_error(errno, std::system_category(), "bind failed");
 	}
 
@@ -84,23 +46,62 @@ int StreamListener::GetFD() const {
 	return fd;
 }
 
-void StreamListener::Handle(std::shared_ptr<Event> event, std::uint32_t events) {
+std::shared_ptr<StreamListener> StreamListener::Create(std::shared_ptr<NewConnectionHandler> new_connection_handler, const std::string &ip_addr, in_port_t port) {
+	LOG_INFO("creating a stream listener ip_addr=" << ip_addr << " port=" << port);
+
+	// Try IPv4.
+	sockaddr_in in4 = {};
+	if (inet_pton(AF_INET, ip_addr.c_str(), &in4.sin_addr) == 1) {
+		in4.sin_family = AF_INET;
+		in4.sin_port = htons(port);
+
+		auto fd = Listen(AF_INET, reinterpret_cast<sockaddr*>(&in4), sizeof(in4));
+
+		return std::shared_ptr<StreamListener>(new StreamListener(new_connection_handler, fd));
+	}
+
+	LOG_DEBUG("inet_pton for IPv6 failed ip_addr=" << ip_addr << " errno=" << errno);
+
+	// Try IPv6.
+	sockaddr_in6 in6 = {};
+	if (inet_pton(AF_INET6, ip_addr.c_str(), &in6.sin6_addr) == 1) {
+		in6.sin6_family = AF_INET6;
+		in6.sin6_port = htons(port);
+
+		auto fd = Listen(AF_INET6, reinterpret_cast<sockaddr*>(&in6), sizeof(in6));
+
+		return std::shared_ptr<StreamListener>(new StreamListener(new_connection_handler, fd));
+	}
+
+	LOG_DEBUG("inet_pton for IPv6 failed ip_addr=" << ip_addr << " errno=" << errno);
+
+	throw "invalid host - inet_pton failed for both IPv4 and IPv6";
+}
+
+
+int StreamListener::GetFlags() const {
+	return READ_FLAG;
+}
+
+
+
+void StreamListener::Handle(std::uint32_t events) {
 	if (!(events & EPOLLIN)) {
-		LOG_WARN("received an non EPOLLIN event for a listener " << "fd=" << event->GetFD() << " events=" << events);
+		LOG_WARN("received an non EPOLLIN event for a listener " << "fd=" << event_->GetFD() << " events=" << events);
 		return;
 	}
 
 	// To avoid starvation limit the number of "accepts".
 
 	for (auto i = 0; i < GLOBAL_CONFIG.listen_starvation_limit_; i++) {
-		LOG_TRACE("listener about to call accept " << "fd=" << event->GetFD() << "i=" << i)
+		LOG_TRACE("listener about to call accept " << "fd=" << event_->GetFD() << "i=" << i)
 
-		auto new_fd = accept(event->GetFD(), NULL, 0);
+		auto new_fd = accept(event_->GetFD(), NULL, 0);
 
 		if (new_fd < 0) {
 			switch (errno) {
 			case EAGAIN:
-				LOG_DEBUG("listener nothing to accept " << "fd=" << event->GetFD())
+				LOG_DEBUG("listener nothing to accept " << "fd=" << event_->GetFD())
 				return;
 			case EBADF:
 			case EFAULT:
@@ -112,7 +113,7 @@ void StreamListener::Handle(std::shared_ptr<Event> event, std::uint32_t events) 
 			case ENOTSOCK:
 				throw std::system_error(errno, std::system_category(), "accept failed");
 			default:
-				LOG_DEBUG("listener accept failed " << "fd=" << event->GetFD() << " errno=" << errno);
+				LOG_DEBUG("listener accept failed " << "fd=" << event_->GetFD() << " errno=" << errno);
 				continue;
 			}
 		}
@@ -126,7 +127,7 @@ void StreamListener::Handle(std::shared_ptr<Event> event, std::uint32_t events) 
 			throw std::system_error(errno, std::system_category(), "fcntl set failed");
 		}
 
-		LOG_DEBUG("listener accepted new connection " << "fd=" << event->GetFD() << " new_fd=" << new_fd);
+		LOG_DEBUG("listener accepted new connection " << "fd=" << event_->GetFD() << " new_fd=" << new_fd);
 
 		auto new_connection_handler = new_connection_handler_.lock();
 		if (new_connection_handler) {
@@ -136,9 +137,9 @@ void StreamListener::Handle(std::shared_ptr<Event> event, std::uint32_t events) 
 		}
 	}
 
-	LOG_DEBUG("listener reached starvation limit " << "fd=" << event->GetFD());
+	LOG_DEBUG("listener reached starvation limit " << "fd=" << event_->GetFD());
 
-	event->Ready();
+	event_->Ready(READ_FLAG);
 }
 
 

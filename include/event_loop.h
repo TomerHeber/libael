@@ -18,46 +18,10 @@
 #include <functional>
 
 #include "event.h"
-#include "log.h"
 
 namespace ael {
 
 class EventLoop : public std::enable_shared_from_this<EventLoop> {
-private:
-	template<class T>
-	class ExecuteEventHandler : public EventHandler {
-	public:
-		ExecuteEventHandler(std::function<void()> func, std::weak_ptr<T> instance) :
-			func_(func),
-			instance_(instance) {
-			LOG_TRACE("execute event handler is created");
-		}
-
-		virtual ~ExecuteEventHandler() {
-			LOG_TRACE("execute event handler is destroyed");
-		}
-
-	private:
-		virtual void Handle(std::shared_ptr<Event> event, std::uint32_t events) {
-			auto instance = instance_.lock();
-			if (instance) {
-				func_();
-			}
-
-			event->Close();
-
-			auto event_handler = event->GetEventHandler().lock();
-			auto event_loop = event->GetEventLoop().lock();
-
-			if (event_handler && event_loop) {
-				event_loop->RemoveInternal(event_handler);
-			}
-		}
-
-		std::function<void()> func_;
-		std::weak_ptr<T> instance_;
-	};
-
 public:
 	static std::shared_ptr<EventLoop> Create();
 
@@ -65,7 +29,7 @@ public:
 
 	template<class Function, class Instance, class... Args>
 	void Execute(Function func, std::shared_ptr<Instance> instance, Args&&... args) {
-		auto execute_event_handler = std::make_shared<ExecuteEventHandler<Instance>>(std::bind(func, instance.get(), std::forward<Args>(args)...), instance);
+		auto execute_event_handler = std::make_shared<ExecuteEventHandler>(std::bind(func, instance.get(), std::forward<Args>(args)...), instance);
 		AttachInternal(execute_event_handler);
 	}
 
@@ -76,6 +40,7 @@ private:
 
 	void Run();
 	void Remove(std::uint64_t id);
+	void Ready(std::shared_ptr<Event> event, int flags);
 
 	void AttachInternal(std::shared_ptr<EventHandler> event_handler);
 	void RemoveInternal(std::shared_ptr<EventHandler> event_handler);
@@ -90,6 +55,18 @@ private:
 	std::atomic_bool stop_;
 
 	friend Event;
+
+	class ExecuteEventHandler : public EventHandler {
+	public:
+		ExecuteEventHandler(std::function<void()> func, std::weak_ptr<void> instance);
+		virtual ~ExecuteEventHandler();
+
+	private:
+		virtual void Handle(std::uint32_t events);
+
+		std::function<void()> func_;
+		std::weak_ptr<void> instance_;
+	};
 };
 
 }

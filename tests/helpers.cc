@@ -57,3 +57,19 @@ int ConnectTo(const std::string &ip_addr, in_port_t port) {
 	return fd;
 }
 
+void WaitCount::Dec() {
+	lock_guard<mutex> lock(mut_);
+	count_--;
+	if (count_ == 0) {
+		cond_.notify_one();
+	}
+	if (count_ < 0) {
+		throw "too many decrements";
+	}
+}
+
+bool WaitCount::Wait() {
+	unique_lock<mutex> lock(mut_);
+	return cond_.wait_for(lock, wait_time_, [this]{return count_ == 0;});
+}
+

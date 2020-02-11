@@ -24,6 +24,7 @@ namespace ael {
 class EventLoop : public std::enable_shared_from_this<EventLoop> {
 public:
 	static std::shared_ptr<EventLoop> Create();
+	static void DestroyAll();
 
 	void Attach(std::shared_ptr<EventHandler> event_handler);
 
@@ -33,6 +34,7 @@ public:
 		AttachInternal(execute_event_handler);
 	}
 
+
 	virtual ~EventLoop();
 
 private:
@@ -41,6 +43,7 @@ private:
 	void Run();
 	void Remove(std::uint64_t id);
 	void Ready(std::shared_ptr<Event> event, int flags);
+	void Modify(std::shared_ptr<Event> event);
 
 	void AttachInternal(std::shared_ptr<EventHandler> event_handler);
 	void RemoveInternal(std::shared_ptr<EventHandler> event_handler);

@@ -47,8 +47,9 @@ public:
 	std::weak_ptr<EventHandler> GetEventHandler() const { return event_handler_; }
 	std::weak_ptr<EventLoop> GetEventLoop() const { return event_loop_; }
 
-	void Close();
-	void Ready(int flags);
+	void Close(); // The event should be "closed".
+	void Modify(); // "events" state has been modified. ***Important: this function must be called within the context of the event loop (this restriction may change if required in the future).
+	void Ready(int flags);	// Notifies that the event is ready to handle events (based on flags).
 
 private:
 	Event(std::weak_ptr<EventLoop>, std::weak_ptr<EventHandler> event_handler, int fd, int flags);

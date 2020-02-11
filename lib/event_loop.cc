@@ -13,12 +13,27 @@
 
 namespace ael {
 
+static std::mutex table_lock;
+static std::unordered_set<std::shared_ptr<EventLoop>> table;
+
+void EventLoop::DestroyAll() {
+	std::unordered_set<std::shared_ptr<EventLoop>> table_swap;
+
+	table_lock.lock();
+	table_swap.swap(table);
+	table_lock.unlock();
+
+	table_swap.clear();
+}
+
 EventLoop::EventLoop() : async_io_(AsyncIO::Create()), stop_(false) {
 	LOG_TRACE("event loop is being created");
 }
 
 EventLoop::~EventLoop() {
+	//TODO --- fix...
 	LOG_TRACE("event loop is destroyed");
+	gfgd
 	stop_ = true;
 	async_io_->Wakeup(); // Wakeup for the loop to detect stop.
 	thread_->join();
@@ -28,6 +43,10 @@ EventLoop::~EventLoop() {
 std::shared_ptr<EventLoop> EventLoop::Create() {
 	std::shared_ptr<EventLoop> event_loop(new EventLoop);
 
+	table_lock.lock();
+	table.insert(event_loop);
+	table_lock.unlock();
+
 	LOG_TRACE("event loop is being created - starting thread");
 	event_loop->thread_ = std::make_unique<std::thread>(&EventLoop::Run, event_loop.get());
 
@@ -35,13 +54,13 @@ std::shared_ptr<EventLoop> EventLoop::Create() {
 }
 
 void EventLoop::Run() {
-	LOG_TRACE("event loop thread started");
+	LOG_DEBUG("event loop thread started");
 
 	while (!stop_) {
 		async_io_->Process();
 	}
 
-	LOG_TRACE("event loop stop detected");
+	LOG_DEBUG("event loop stop detected");
 
 	lock_.lock();
 	for (auto it : events_) {
@@ -53,7 +72,7 @@ void EventLoop::Run() {
 
 	async_io_->Process();
 
-	LOG_TRACE("event loop thread finished");
+	LOG_DEBUG("event loop thread finished");
 }
 
 void EventLoop::Remove(std::uint64_t id) {
@@ -80,15 +99,23 @@ void EventLoop::Remove(std::uint64_t id) {
 void EventLoop::Ready(std::shared_ptr<Event> event, int flags) {
 	auto event_id = event->GetID();
 
-	LOG_DEBUG("readying an event id=" << event_id << " flags=" << flags);
+	LOG_TRACE("readying an event id=" << event_id << " flags=" << flags);
 
 	async_io_->Ready(event, flags);
+}
+
+void EventLoop::Modify(std::shared_ptr<Event> event) {
+	if (thread_->get_id() != std::this_thread::get_id()) {
+		throw "Modify() called outside the scope of the event loop";
+	}
+
+	async_io_->Modify(event);
 }
 
 std::shared_ptr<Event> EventLoop::CreateEvent(std::shared_ptr<EventHandler> event_handler, int fd, int flags) {
 	std::shared_ptr<Event> event(new Event(shared_from_this(), event_handler, fd, flags));
 
-	LOG_DEBUG("creating and adding an event id=" << event->GetID() << " fd=" << event->GetFD());
+	LOG_TRACE("creating and adding an event id=" << event->GetID() << " fd=" << event->GetFD());
 
 	lock_.lock();
 	events_[event->GetID()] = event;

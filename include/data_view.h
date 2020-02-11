@@ -17,6 +17,7 @@ class DataView : public std::enable_shared_from_this<DataView>  {
 public:
 	DataView();
 	DataView(const DataView& other);
+	DataView(const std::string &data);
 	DataView(const std::uint8_t* data, int data_length);
 
 	virtual ~DataView();
@@ -28,6 +29,7 @@ public:
 	DataView Slice(int suffix_index) const;
 
 	std::shared_ptr<const DataView> Save() const;
+	void AppendToString(std::string &str) const;
 
 private:
 	const std::uint8_t* const data_;

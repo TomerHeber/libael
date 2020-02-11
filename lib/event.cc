@@ -50,6 +50,15 @@ void Event::Ready(int flags) {
 	}
 }
 
+void Event::Modify() {
+	auto event_loop = event_loop_.lock();
+	if (event_loop) {
+		event_loop->Modify(shared_from_this());
+	} else {
+		LOG_WARN("event modify called but event loop deleted id=" << id_ << " fd=" << fd_);
+	}
+}
+
 EventHandler::EventHandler(int fd) : fd_(fd) {
 	LOG_TRACE("event handler is created fd=" << fd);
 }

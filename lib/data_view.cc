@@ -22,6 +22,7 @@ DataView::~DataView() {
 }
 
 DataView::DataView(const std::uint8_t* data, int data_length) : data_(data), data_length_(data_length), saved_(false) {}
+DataView::DataView(const std::string &data) : data_(reinterpret_cast<const std::uint8_t*>(data.c_str())), data_length_(data.size()), saved_(false) {}
 
 DataView::DataView(const std::uint8_t* data, int data_length, bool saved) : data_(data), data_length_(data_length), saved_(saved) {}
 
@@ -46,6 +47,14 @@ std::shared_ptr<const DataView> DataView::Save() const {
 	std::memcpy(data, data_, data_length_);
 
 	return std::shared_ptr<DataView>(new DataView(data, data_length_, true));
+}
+
+void DataView::AppendToString(std::string &str) const {
+	if (data_length_ <= 0) {
+		return;
+	}
+
+	str.append(reinterpret_cast<const char*>(data_), data_length_);
 }
 
 } /* namespace ael */

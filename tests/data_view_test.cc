@@ -63,6 +63,29 @@ TEST(DataView, Slice) {
 
 }
 
+TEST(DataView, Append) {
+	string str;
+	auto to_append = "1";
+	auto to_append_len = strlen(to_append);
+
+	auto view = DataView(reinterpret_cast<const uint8_t*>(to_append), to_append_len);
+
+	view.AppendToString(str);
+	view.AppendToString(str);
+	view.AppendToString(str);
+	view.AppendToString(str);
+	view.AppendToString(str);
+
+	ASSERT_EQ(str,"11111");
+
+	to_append = "2";
+	auto view2 = DataView(reinterpret_cast<const uint8_t*>(to_append), to_append_len);
+	view2.AppendToString(str);
+	view2.AppendToString(str);
+
+	ASSERT_EQ(str,"1111122");
+}
+
 int main(int argc, char **argv)
 {
     ::testing::InitGoogleTest(&argc, argv);

@@ -11,7 +11,7 @@ namespace ael {
 
 namespace log {
 
-Sink* Sink::sink_ = nullptr;
+std::unique_ptr<Sink> Sink::sink_;
 LogLevel Sink::log_level_ = LogLevel::None;
 
 }

@@ -17,11 +17,10 @@ namespace ael {
 
 std::atomic_uint64_t id_counter(0);
 
-Event::Event(std::weak_ptr<EventLoop> event_loop, std::weak_ptr<EventHandler> event_handler, int fd, int flags) :
+Event::Event(std::shared_ptr<EventLoop> event_loop, std::shared_ptr<EventHandler> event_handler) :
 		event_loop_(event_loop),
 		event_handler_(event_handler),
-		fd_(fd),
-		flags_(flags) {
+		fd_(event_handler->GetFD()) {
 	id_ = id_counter.fetch_add(1);
 	LOG_TRACE("event is created id=" << id_);
 }
@@ -32,6 +31,16 @@ Event::~Event() {
 	if (fd_ >= 0) {
 		close(fd_);
 	}
+}
+
+int Event::GetFlags() const {
+	auto event_handler = event_handler_.lock();
+	if (!event_handler) {
+		LOG_WARN("event get flags called but event handler deleted id=" << id_ << " fd=" << fd_);
+		return 0;
+	}
+
+	return event_handler->GetFlags();
 }
 
 void Event::Close() {
@@ -63,11 +72,8 @@ EventHandler::EventHandler(int fd) : fd_(fd) {
 	LOG_TRACE("event handler is created fd=" << fd);
 }
 
-int EventHandler::AcquireFileDescriptor() {
-	LOG_TRACE("event acquiring descriptor fd=" << fd_);
-	auto fd = fd_;
-	fd_ = -1;
-	return fd;
+int EventHandler::GetFD() const {
+	return fd_;
 }
 
 EventHandler::~EventHandler() {

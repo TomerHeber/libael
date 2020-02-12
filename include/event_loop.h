@@ -49,7 +49,7 @@ private:
 	void AttachInternal(std::shared_ptr<EventHandler> event_handler);
 	void RemoveInternal(std::shared_ptr<EventHandler> event_handler);
 
-	std::shared_ptr<Event> CreateEvent(std::shared_ptr<EventHandler> event_handler, int fd, int flags);
+	std::shared_ptr<Event> CreateEvent(std::shared_ptr<EventHandler> event_handler);
 
 	std::unique_ptr<std::thread> thread_;
 	std::unique_ptr<class AsyncIO> async_io_;
@@ -66,7 +66,8 @@ private:
 		virtual ~ExecuteEventHandler();
 
 	private:
-		virtual void Handle(std::uint32_t events);
+		void Handle(std::uint32_t events) override;
+		int GetFlags() const override { return 0; }
 
 		std::function<void()> func_;
 		std::weak_ptr<void> instance_;

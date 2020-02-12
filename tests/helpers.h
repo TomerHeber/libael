@@ -28,7 +28,7 @@ public:
 	virtual ~CoutSink() {}
 
 private:
-	virtual void Log(ael::log::LogLevel log_level, const std::string &msg);
+	void Log(ael::log::LogLevel log_level, const std::string &msg) override;
 };
 
 class WaitCount {
@@ -36,8 +36,8 @@ public:
 	WaitCount(int count, const chrono::milliseconds &wait_time) : count_(count), wait_time_(wait_time) {}
 	virtual ~WaitCount() {}
 
-	virtual void Dec();
-	virtual bool Wait();
+	void Dec();
+	bool Wait();
 
 private:
 	int count_;
@@ -50,7 +50,7 @@ class Environment : public ::testing::Environment {
  public:
   ~Environment() override {}
 
-  void SetUp() override {}
+  void SetUp() override;
   void TearDown() override;
 };
 

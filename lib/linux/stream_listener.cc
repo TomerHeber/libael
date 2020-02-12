@@ -78,12 +78,9 @@ std::shared_ptr<StreamListener> StreamListener::Create(std::shared_ptr<NewConnec
 	throw "invalid host - inet_pton failed for both IPv4 and IPv6";
 }
 
-
 int StreamListener::GetFlags() const {
 	return READ_FLAG;
 }
-
-
 
 void StreamListener::Handle(std::uint32_t events) {
 	if (!(events & EPOLLIN)) {
@@ -141,6 +138,5 @@ void StreamListener::Handle(std::uint32_t events) {
 
 	event_->Ready(READ_FLAG);
 }
-
 
 }

@@ -74,6 +74,11 @@ bool WaitCount::Wait() {
 	return cond_.wait_for(lock, wait_time_, [this]{return count_ == 0;});
 }
 
+void Environment::SetUp() {
+	log::Sink::sink_.reset(new CoutSink());
+	log::Sink::log_level_ = log::LogLevel::Warn;
+}
+
 void Environment::TearDown() {
 	EventLoop::DestroyAll();
 }

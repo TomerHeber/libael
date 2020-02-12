@@ -117,8 +117,8 @@ void EventLoop::Modify(std::shared_ptr<Event> event) {
 	async_io_->Modify(event);
 }
 
-std::shared_ptr<Event> EventLoop::CreateEvent(std::shared_ptr<EventHandler> event_handler, int fd, int flags) {
-	std::shared_ptr<Event> event(new Event(shared_from_this(), event_handler, fd, flags));
+std::shared_ptr<Event> EventLoop::CreateEvent(std::shared_ptr<EventHandler> event_handler) {
+	std::shared_ptr<Event> event(new Event(shared_from_this(), event_handler));
 
 	LOG_TRACE("creating and adding an event id=" << event->GetID() << " fd=" << event->GetFD());
 
@@ -136,7 +136,7 @@ void EventLoop::Attach(std::shared_ptr<EventHandler> event_handler) {
 		throw "event handler already attached";
 	}
 
-	event_handler->event_ = CreateEvent(event_handler, event_handler->AcquireFileDescriptor(), event_handler->GetFlags());
+	event_handler->event_= CreateEvent(event_handler);
 
 	LOG_DEBUG("event handler attaching to event loop event_id=" << event_handler->event_->GetID() << " event_fd=" << event_handler->event_->GetFD());
 

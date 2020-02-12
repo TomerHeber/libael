@@ -214,7 +214,7 @@ TEST(StreamBuffer, Basic) {
 }
 
 TEST(StreamBuffer, PingPong) {
-	auto count = 50;
+	auto count = 30;
 	in_port_t port = uniform_port_dist(mt);
 
 	auto event_loop = EventLoop::Create();
@@ -237,9 +237,6 @@ int main(int argc, char **argv)
     ::testing::InitGoogleTest(&argc, argv);
 
     ::testing::AddGlobalTestEnvironment(new Environment);
-
-    log::Sink::sink_ = new CoutSink();
-    log::Sink::log_level_ = log::LogLevel::Warn;
 
     return RUN_ALL_TESTS();
 }

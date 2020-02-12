@@ -23,16 +23,15 @@ public:
 	virtual ~EventHandler();
 
 	virtual void Handle(std::uint32_t events) = 0;
+	virtual int GetFlags() const = 0;
 
-	int AcquireFileDescriptor();
+	int GetFD() const;
 
 protected:
 	std::shared_ptr<Event> event_;
 
 private:
 	int fd_;
-
-	virtual int GetFlags() const { return 0; }
 
 	friend EventLoop;
 };
@@ -43,7 +42,7 @@ public:
 
 	std::uint64_t GetID() const { return id_; }
 	int GetFD() const { return fd_; }
-	int GetFlags() const { return flags_; }
+	int GetFlags() const;
 	std::weak_ptr<EventHandler> GetEventHandler() const { return event_handler_; }
 	std::weak_ptr<EventLoop> GetEventLoop() const { return event_loop_; }
 
@@ -52,13 +51,12 @@ public:
 	void Ready(int flags);	// Notifies that the event is ready to handle events (based on flags).
 
 private:
-	Event(std::weak_ptr<EventLoop>, std::weak_ptr<EventHandler> event_handler, int fd, int flags);
+	Event(std::shared_ptr<EventLoop>, std::shared_ptr<EventHandler> event_handler);
 
 	std::uint64_t id_;
 	std::weak_ptr<EventLoop> event_loop_;
 	std::weak_ptr<EventHandler> event_handler_;
 	int fd_;
-	int flags_;
 	std::once_flag close_flag_;
 
 	friend EventLoop;

@@ -10,6 +10,7 @@
 
 #include <string>
 #include <sstream>
+#include <memory>
 
 namespace ael {
 
@@ -31,16 +32,16 @@ public:
 
 	virtual void Log(LogLevel log_level, const std::string &msg) = 0;
 
-	static Sink *sink_;
+	static std::unique_ptr<Sink> sink_;
 	static LogLevel log_level_;
 
 protected:
 	Sink() {}
 };
 
-#define LOG_LEVEL(log_level, msg) if (log::Sink::sink_ != nullptr && log_level >= log::Sink::log_level_) { 		\
+#define LOG_LEVEL(log_level, msg) if (log::Sink::sink_ && log_level >= log::Sink::log_level_) { 		\
 	std::ostringstream oss;																						\
-	oss << msg;																									\
+	oss << __FILE__  << ":" << __LINE__ << " " << __FUNCTION__ << "() - " << msg;									\
 	log::Sink::sink_->Log(log_level, oss.str());																\
 }																												\
 

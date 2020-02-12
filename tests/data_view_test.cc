@@ -90,7 +90,7 @@ int main(int argc, char **argv)
 {
     ::testing::InitGoogleTest(&argc, argv);
 
-    log::Sink::sink_ = new CoutSink();
+    ::testing::AddGlobalTestEnvironment(new Environment);
 
     return RUN_ALL_TESTS();
 }

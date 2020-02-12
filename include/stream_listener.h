@@ -38,8 +38,8 @@ public:
 private:
 	StreamListener(std::shared_ptr<NewConnectionHandler> new_connection_handler, int fd);
 
-	virtual void Handle(std::uint32_t events);
-	virtual int GetFlags() const;
+	void Handle(std::uint32_t events) override;
+	int GetFlags() const override;
 
 	std::weak_ptr<NewConnectionHandler> new_connection_handler_;
 };

@@ -45,8 +45,8 @@ public:
 private:
 	StreamBuffer(std::shared_ptr<StreamBufferHandler> stream_buffer_handler, int fd, bool connected);
 
-	virtual void Handle(std::uint32_t events);
-	virtual int GetFlags() const;
+	void Handle(std::uint32_t events) override;
+	int GetFlags() const override;
 
 	void DoRead(std::uint32_t events, StreamBufferHandler *stream_buffer_handler);
 	void DoWrite(std::uint32_t events, StreamBufferHandler *stream_buffer_handler);

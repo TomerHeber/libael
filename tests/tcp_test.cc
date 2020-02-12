@@ -28,7 +28,7 @@ public:
 	NewConnectionHandlerCount(int expected_connections_count, const chrono::milliseconds &wait_time) : WaitCount(expected_connections_count, wait_time) {}
 	virtual ~NewConnectionHandlerCount() {}
 
-	virtual void HandleNewConnection(int fd) {
+	void HandleNewConnection(int fd) override {
 		close(fd);
 		Dec();
 	}
@@ -39,13 +39,13 @@ public:
 	StreamBufferHandlerCount(int expected_count, const chrono::milliseconds &wait_time) : WaitCount(expected_count, wait_time) {}
 	virtual ~StreamBufferHandlerCount() {}
 
-	virtual void HandleData(std::shared_ptr<StreamBuffer> stream_buffer, const DataView &data_view) {}
+	void HandleData(std::shared_ptr<StreamBuffer> stream_buffer, const DataView &data_view) override {}
 
-	virtual void HandleConnected(std::shared_ptr<StreamBuffer> stream_buffer) {
+	void HandleConnected(std::shared_ptr<StreamBuffer> stream_buffer) override {
 		Dec();
 	}
 
-	virtual void HandleEOF(std::shared_ptr<StreamBuffer> stream_buffer) {
+	void HandleEOF(std::shared_ptr<StreamBuffer> stream_buffer) override {
 		Dec();
 	}
 };
@@ -57,19 +57,19 @@ public:
 	}
 	virtual ~StreamBufferHandlerPongCount() {}
 
-	virtual void HandleEOF(std::shared_ptr<StreamBuffer> stream_buffer) {
+	void HandleEOF(std::shared_ptr<StreamBuffer> stream_buffer) override {
 		ASSERT_EQ(1, strings_.erase(stream_buffer));
 		Dec();
 	}
 
-	virtual void HandleConnected(std::shared_ptr<StreamBuffer> stream_buffer) {
+	void HandleConnected(std::shared_ptr<StreamBuffer> stream_buffer) override {
 		auto ping_msg = string("ping");
 		stream_buffer->Write(ping_msg.substr(0, 2));
 		stream_buffer->Write(ping_msg.substr(2, 1));
 		stream_buffer->Write(ping_msg.substr(3, 1));
 	}
 
-	virtual void HandleData(std::shared_ptr<StreamBuffer> stream_buffer, const DataView &data_view) {
+	void HandleData(std::shared_ptr<StreamBuffer> stream_buffer, const DataView &data_view) override {
 		string &str = strings_[stream_buffer];
 		data_view.AppendToString(str);
 		if (str == "pong") {
@@ -97,22 +97,22 @@ public:
 	}
 	virtual ~PingServer() {}
 
-	virtual void HandleNewConnection(int fd) {
+	void HandleNewConnection(int fd) override {
 		auto stream_buffer = StreamBuffer::Create(shared_from_this(), fd);
 		strings_[stream_buffer] = "";
 		event_loop_->Attach(stream_buffer);
 	}
 
-	virtual void HandleEOF(std::shared_ptr<StreamBuffer> stream_buffer) {
+	void HandleEOF(std::shared_ptr<StreamBuffer> stream_buffer) override {
 		ASSERT_EQ(1, strings_.erase(stream_buffer));
 		Dec();
 	}
 
-	virtual void HandleConnected(std::shared_ptr<StreamBuffer> stream_buffer) {
+	void HandleConnected(std::shared_ptr<StreamBuffer> stream_buffer) override {
 		throw "should not occur - all connections should already be connected";
 	}
 
-	virtual void HandleData(std::shared_ptr<StreamBuffer> stream_buffer, const DataView &data_view) {
+	void HandleData(std::shared_ptr<StreamBuffer> stream_buffer, const DataView &data_view) override {
 		string &str = strings_[stream_buffer];
 		data_view.AppendToString(str);
 		if (str == "ping") {
@@ -235,6 +235,8 @@ TEST(StreamBuffer, PingPong) {
 int main(int argc, char **argv)
 {
     ::testing::InitGoogleTest(&argc, argv);
+
+    ::testing::AddGlobalTestEnvironment(new Environment);
 
     log::Sink::sink_ = new CoutSink();
     log::Sink::log_level_ = log::LogLevel::Warn;

@@ -10,6 +10,8 @@
 
 #include "log.h"
 
+#include "gtest/gtest.h"
+
 #include <netinet/in.h>
 
 #include <string>
@@ -42,6 +44,14 @@ private:
 	chrono::milliseconds wait_time_;
 	condition_variable cond_;
 	mutex mut_;
+};
+
+class Environment : public ::testing::Environment {
+ public:
+  ~Environment() override {}
+
+  void SetUp() override {}
+  void TearDown() override;
 };
 
 int ConnectTo(const std::string &ip_addr, in_port_t port);

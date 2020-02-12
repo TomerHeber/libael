@@ -23,6 +23,9 @@ void EventLoop::DestroyAll() {
 	table_swap.swap(table);
 	table_lock.unlock();
 
+	for (auto event_loop : table_swap) {
+		event_loop->Stop();
+	}
 	table_swap.clear();
 }
 
@@ -31,13 +34,7 @@ EventLoop::EventLoop() : async_io_(AsyncIO::Create()), stop_(false) {
 }
 
 EventLoop::~EventLoop() {
-	//TODO --- fix...
 	LOG_TRACE("event loop is destroyed");
-	gfgd
-	stop_ = true;
-	async_io_->Wakeup(); // Wakeup for the loop to detect stop.
-	thread_->join();
-	LOG_TRACE("event loop is destroyed - thread join complete");
 }
 
 std::shared_ptr<EventLoop> EventLoop::Create() {
@@ -51,6 +48,14 @@ std::shared_ptr<EventLoop> EventLoop::Create() {
 	event_loop->thread_ = std::make_unique<std::thread>(&EventLoop::Run, event_loop.get());
 
 	return event_loop;
+}
+
+void EventLoop::Stop() {
+	LOG_TRACE("event loop is stopping");
+	stop_ = true;
+	async_io_->Wakeup(); // Wakeup for the loop to detect stop.
+	thread_->join();
+	LOG_TRACE("event loop stopped");
 }
 
 void EventLoop::Run() {

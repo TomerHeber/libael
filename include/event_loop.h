@@ -44,6 +44,7 @@ private:
 	void Remove(std::uint64_t id);
 	void Ready(std::shared_ptr<Event> event, int flags);
 	void Modify(std::shared_ptr<Event> event);
+	void Stop();
 
 	void AttachInternal(std::shared_ptr<EventHandler> event_handler);
 	void RemoveInternal(std::shared_ptr<EventHandler> event_handler);

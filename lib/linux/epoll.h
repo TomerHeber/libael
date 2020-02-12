@@ -28,12 +28,12 @@ private:
 		std::shared_ptr<Event> event;
 	};
 
-	virtual void Add(std::shared_ptr<Event> event);
-	virtual void Modify(std::shared_ptr<Event> event);
-	virtual void Remove(std::shared_ptr<Event> event);
-	virtual void Ready(std::shared_ptr<Event> event, int flags);
-	virtual void Wakeup();
-	virtual void Process();
+	void Add(std::shared_ptr<Event> event) override;
+	void Modify(std::shared_ptr<Event> event) override;
+	void Remove(std::shared_ptr<Event> event) override;
+	void Ready(std::shared_ptr<Event> event, int flags) override;
+	void Wakeup() override;
+	void Process() override;
 
 	void AddFinalize(std::shared_ptr<Event> event);
 	void ReadyFinalize(ReadyEvent ready_event);

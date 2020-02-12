@@ -6,6 +6,7 @@
  */
 
 #include "helpers.h"
+#include "event_loop.h"
 
 #include <iostream>
 #include <cstring>
@@ -71,5 +72,9 @@ void WaitCount::Dec() {
 bool WaitCount::Wait() {
 	unique_lock<mutex> lock(mut_);
 	return cond_.wait_for(lock, wait_time_, [this]{return count_ == 0;});
+}
+
+void Environment::TearDown() {
+	EventLoop::DestroyAll();
 }
 

@@ -19,7 +19,12 @@ public:
 	SSLStreamBufferFilter(std::shared_ptr<StreamBuffer> stream_buffer, SSL *ssl);
 	virtual ~SSLStreamBufferFilter();
 
+	void Connect() override;
+
 private:
+	InResult In(std::uint8_t *buf, std::uint32_t buf_size) override;
+	OutResult Out(std::list<std::shared_ptr<const DataView>> &out_list) override;
+
 	SSL *ssl_;
 	BIO *rbio_;
 	BIO *wbio_;

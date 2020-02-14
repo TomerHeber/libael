@@ -33,6 +33,8 @@ class StreamListener: public EventHandler {
 public:
 	virtual ~StreamListener() {}
 
+	friend std::ostream& operator<<(std::ostream &out, const StreamListener *stream_listener);
+
 	static std::shared_ptr<StreamListener> Create(std::shared_ptr<NewConnectionHandler> new_connection_handler, const std::string &ip_addr, in_port_t port);
 
 private:

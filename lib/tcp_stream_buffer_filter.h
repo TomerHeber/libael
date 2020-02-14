@@ -14,28 +14,21 @@ namespace ael {
 
 class TCPStreamBufferFilter: public StreamBufferFilter {
 public:
-	TCPStreamBufferFilter(std::shared_ptr<StreamBuffer> stream_buffer, int fd, int connected);
+	TCPStreamBufferFilter(std::shared_ptr<StreamBuffer> stream_buffer, int fd, bool pending_connect);
 	virtual ~TCPStreamBufferFilter();
 
-	static std::shared_ptr<TCPStreamBufferFilter> Create(std::shared_ptr<StreamBuffer> stream_buffer, int fd, bool is_connected);
+	static std::shared_ptr<TCPStreamBufferFilter> Create(std::shared_ptr<StreamBuffer> stream_buffer, int fd, bool connected);
 
-	int GetHandler() const { return fd_; }
+	friend std::ostream& operator<<(std::ostream &out, const TCPStreamBufferFilter *filter);
 
 private:
-	void Write(const std::list<std::shared_ptr<const DataView>> &write_list) override;
-	void Read() override;
-	void Close() override;
+	InResult In(std::uint8_t *buf, std::uint32_t buf_size) override;
+	OutResult Out(std::list<std::shared_ptr<const DataView>> &out_list) override;
+
 	void Connect() override;
-	int GetFlags() const override;
-	bool IsReadClosed() const override;
-	bool IsWriteClosed() const override;
-	bool IsConnected() const override;
 
 	int fd_;
-	int connected_;
-	bool write_closed_;
-	bool read_closed_;
-	std::list<std::shared_ptr<const DataView>> pending_writes_;
+	bool pending_connect_;
 };
 
 } /* namespace ael */

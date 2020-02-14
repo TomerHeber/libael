@@ -25,15 +25,18 @@ public:
 	virtual void Handle(std::uint32_t events) = 0;
 	virtual int GetFlags() const = 0;
 
-protected:
-	const std::uint64_t id_;
+	std::uint64_t GetId() const { return id_; }
 
+	friend std::ostream& operator<<(std::ostream &out, const EventHandler *event_handler);
+
+protected:
 	void ReadyEvent(int flags);
 	void CloseEvent();
 	void ModifyEvent();
 
 private:
 	std::shared_ptr<Event> event_;
+	const std::uint64_t id_;
 	int fd_;
 
 	friend EventLoop;
@@ -43,6 +46,8 @@ private:
 class Event : public std::enable_shared_from_this<Event> {
 public:
 	virtual ~Event();
+
+	friend std::ostream& operator<<(std::ostream &out, const Event *event);
 
 	std::uint64_t GetID() const { return id_; }
 	int GetFD() const { return fd_; }

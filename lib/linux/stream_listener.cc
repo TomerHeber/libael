@@ -21,6 +21,12 @@
 
 namespace ael {
 
+std::ostream& operator<<(std::ostream &out, const StreamListener *stream_listener) {
+	const EventHandler *event_handler = stream_listener;
+	out << event_handler;
+	return out;
+}
+
 StreamListener::StreamListener(std::shared_ptr<NewConnectionHandler> new_connection_handler, int fd) :
 		EventHandler(fd),
 		new_connection_handler_(new_connection_handler),
@@ -86,21 +92,21 @@ int StreamListener::GetFlags() const {
 
 void StreamListener::Handle(std::uint32_t events) {
 	if (!(events & EPOLLIN)) {
-		LOG_WARN("received an non EPOLLIN event for a listener " << "id=" << id_ << " events=" << events);
+		LOG_WARN("received an non EPOLLIN event for a listener " << this << " events=" << events);
 		return;
 	}
 
 	// To avoid starvation limit the number of "accepts".
 
 	for (auto i = 0; i < GLOBAL_CONFIG.listen_starvation_limit_; i++) {
-		LOG_TRACE("listener about to call accept " << "id=" << id_ << "i=" << i)
+		LOG_TRACE("listener about to call accept " << this << " i=" << i)
 
 		auto new_fd = accept(fd_, NULL, 0);
 
 		if (new_fd < 0) {
 			switch (errno) {
 			case EAGAIN:
-				LOG_DEBUG("listener nothing to accept " << "id=" << id_)
+				LOG_DEBUG("listener nothing to accept " << this)
 				return;
 			case EBADF:
 			case EFAULT:
@@ -112,7 +118,7 @@ void StreamListener::Handle(std::uint32_t events) {
 			case ENOTSOCK:
 				throw std::system_error(errno, std::system_category(), "accept failed");
 			default:
-				LOG_DEBUG("listener accept failed " << "id=" << id_ << " errno=" << errno);
+				LOG_DEBUG("listener accept failed " << this << " errno=" << errno);
 				continue;
 			}
 		}
@@ -126,17 +132,17 @@ void StreamListener::Handle(std::uint32_t events) {
 			throw std::system_error(errno, std::system_category(), "fcntl set failed");
 		}
 
-		LOG_DEBUG("listener accepted new connection " << "id=" << id_ << " new_fd=" << new_fd);
+		LOG_DEBUG("listener accepted new connection " << this << " new_fd=" << new_fd);
 
 		auto new_connection_handler = new_connection_handler_.lock();
 		if (new_connection_handler) {
 			new_connection_handler->HandleNewConnection(new_fd);
 		} else {
-			LOG_WARN("unable to handle new connections - new connection handler has been destroyed!");
+			LOG_WARN("unable to handle new connections - new connection handler has been destroyed " << this);
 		}
 	}
 
-	LOG_DEBUG("listener reached starvation limit " << "id=" << id_);
+	LOG_DEBUG("listener reached starvation limit " << this);
 
 	ReadyEvent(READ_FLAG);
 }

@@ -25,15 +25,19 @@ public:
 	virtual void Handle(std::uint32_t events) = 0;
 	virtual int GetFlags() const = 0;
 
-	int GetFD() const;
-
 protected:
-	std::shared_ptr<Event> event_;
+	const std::uint64_t id_;
+
+	void ReadyEvent(int flags);
+	void CloseEvent();
+	void ModifyEvent();
 
 private:
+	std::shared_ptr<Event> event_;
 	int fd_;
 
 	friend EventLoop;
+	friend Event;
 };
 
 class Event : public std::enable_shared_from_this<Event> {
@@ -53,7 +57,7 @@ public:
 private:
 	Event(std::shared_ptr<EventLoop>, std::shared_ptr<EventHandler> event_handler);
 
-	std::uint64_t id_;
+	const std::uint64_t id_;
 	std::weak_ptr<EventLoop> event_loop_;
 	std::weak_ptr<EventHandler> event_handler_;
 	int fd_;

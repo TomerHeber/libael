@@ -2,7 +2,7 @@ AC_INIT([libael], [0.1])
 
 LT_INIT
 
-AC_CONFIG_SRCDIR([lib/eventloop.cc])
+AC_CONFIG_SRCDIR([lib/event_loop.cc])
 
 AC_CONFIG_MACRO_DIRS([m4])
 
@@ -32,14 +32,25 @@ AX_HAVE_EPOLL(
 	[AX_CONFIG_FEATURE_DISABLE(epoll)]
 )
 AX_CONFIG_FEATURE(
-	[epoll], [This platform supports epoll(7)],
-	[HAVE_EPOLL], [This platform supports epoll(7).],
+	[epoll], [This platform supports epoll],
+	[HAVE_EPOLL], [This platform supports epoll.],
 	[enable_epoll="yes"], [enable_epoll="no"]
+)
+
+AX_CHECK_OPENSSL(
+	[AX_CONFIG_FEATURE_ENABLE(openssl)],
+	[AX_CONFIG_FEATURE_DISABLE(openssl)]
+)
+AX_CONFIG_FEATURE(
+	[openssl], [This platform supports openssl],
+	[HAVE_OPENSSL], [This platform supports openssl.],
+	[enable_openssl="yes"], [enable_openssl="no"]
 )
 
 AM_INIT_AUTOMAKE([subdir-objects])
 
 AM_CONDITIONAL([EPOLL_BACKEND], [test "x$enable_epoll" = "xyes"])
+AM_CONDITIONAL([OPENSSL], [test "x$enable_openssl" = "xyes"])
 AM_CONDITIONAL([LINUX], [test "x$build_linux" = "xyes"])
 
 AC_OUTPUT

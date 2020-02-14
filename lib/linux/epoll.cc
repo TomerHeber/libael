@@ -157,7 +157,7 @@ void EPoll::Modify(std::shared_ptr<Event> event) {
 
 	epoll_event e_event = {};
 	e_event.data.fd = fd;
-	e_event.events = GetEPollEvents(flags);
+	e_event.events = GetEPollEvents(flags) | EPOLLET;
 
 	if (epoll_ctl(epoll_fd_, EPOLL_CTL_MOD, fd, &e_event) != 0) {
 		throw std::system_error(errno, std::system_category(), "epoll_ctl - EPOLL_CTL_MOD - failed");
@@ -204,12 +204,7 @@ void EPoll::AddFinalize(std::shared_ptr<Event> event) {
 	epoll_event e_event = {};
 
 
-	if (flags & CLOSE_FLAG) {
-		e_event.events = EPOLLONESHOT | GetEPollEvents(flags);
-	} else {
-		e_event.events = EPOLLET | GetEPollEvents(flags);
-	}
-
+	e_event.events = EPOLLET | GetEPollEvents(flags);
 	e_event.data.fd = fd;
 
 	events_[fd] = event;

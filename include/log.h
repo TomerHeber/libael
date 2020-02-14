@@ -11,6 +11,7 @@
 #include <string>
 #include <sstream>
 #include <memory>
+#include <chrono>
 
 namespace ael {
 
@@ -34,16 +35,19 @@ public:
 
 	static std::unique_ptr<Sink> sink_;
 	static LogLevel log_level_;
+	static std::chrono::time_point<std::chrono::high_resolution_clock> start_time_;
 
 protected:
 	Sink() {}
 };
 
-#define LOG_LEVEL(log_level, msg) if (log::Sink::sink_ && log_level >= log::Sink::log_level_) { 		\
-	std::ostringstream oss;																						\
-	oss << __FILE__  << ":" << __LINE__ << " " << __FUNCTION__ << "() - " << msg;									\
-	log::Sink::sink_->Log(log_level, oss.str());																\
-}																												\
+
+
+#define LOG_LEVEL(log_level, msg) if (log::Sink::sink_ && log_level >= log::Sink::log_level_) { 								\
+	std::ostringstream oss;																										\
+	oss << "[" << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - log::Sink::start_time_).count() << "ms] " << __FILE__  << ":" << __LINE__ << " " << __FUNCTION__ << "(...) - " << msg;	\
+	log::Sink::sink_->Log(log_level, oss.str());																				\
+}																																\
 
 #define LOG_TRACE(msg) LOG_LEVEL(log::LogLevel::Trace, msg)
 #define LOG_DEBUG(msg) LOG_LEVEL(log::LogLevel::Debug, msg)

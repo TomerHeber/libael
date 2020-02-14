@@ -23,7 +23,9 @@ namespace ael {
 
 StreamListener::StreamListener(std::shared_ptr<NewConnectionHandler> new_connection_handler, int fd) :
 		EventHandler(fd),
-		new_connection_handler_(new_connection_handler) {}
+		new_connection_handler_(new_connection_handler),
+		fd_(fd) {
+}
 
 static int Listen(int domain, const sockaddr *addr, socklen_t addr_size) {
 	LOG_TRACE("creating descriptor for listener");
@@ -84,21 +86,21 @@ int StreamListener::GetFlags() const {
 
 void StreamListener::Handle(std::uint32_t events) {
 	if (!(events & EPOLLIN)) {
-		LOG_WARN("received an non EPOLLIN event for a listener " << "fd=" << event_->GetFD() << " events=" << events);
+		LOG_WARN("received an non EPOLLIN event for a listener " << "id=" << id_ << " events=" << events);
 		return;
 	}
 
 	// To avoid starvation limit the number of "accepts".
 
 	for (auto i = 0; i < GLOBAL_CONFIG.listen_starvation_limit_; i++) {
-		LOG_TRACE("listener about to call accept " << "fd=" << event_->GetFD() << "i=" << i)
+		LOG_TRACE("listener about to call accept " << "id=" << id_ << "i=" << i)
 
-		auto new_fd = accept(event_->GetFD(), NULL, 0);
+		auto new_fd = accept(fd_, NULL, 0);
 
 		if (new_fd < 0) {
 			switch (errno) {
 			case EAGAIN:
-				LOG_DEBUG("listener nothing to accept " << "fd=" << event_->GetFD())
+				LOG_DEBUG("listener nothing to accept " << "id=" << id_)
 				return;
 			case EBADF:
 			case EFAULT:
@@ -110,7 +112,7 @@ void StreamListener::Handle(std::uint32_t events) {
 			case ENOTSOCK:
 				throw std::system_error(errno, std::system_category(), "accept failed");
 			default:
-				LOG_DEBUG("listener accept failed " << "fd=" << event_->GetFD() << " errno=" << errno);
+				LOG_DEBUG("listener accept failed " << "id=" << id_ << " errno=" << errno);
 				continue;
 			}
 		}
@@ -124,7 +126,7 @@ void StreamListener::Handle(std::uint32_t events) {
 			throw std::system_error(errno, std::system_category(), "fcntl set failed");
 		}
 
-		LOG_DEBUG("listener accepted new connection " << "fd=" << event_->GetFD() << " new_fd=" << new_fd);
+		LOG_DEBUG("listener accepted new connection " << "id=" << id_ << " new_fd=" << new_fd);
 
 		auto new_connection_handler = new_connection_handler_.lock();
 		if (new_connection_handler) {
@@ -134,9 +136,9 @@ void StreamListener::Handle(std::uint32_t events) {
 		}
 	}
 
-	LOG_DEBUG("listener reached starvation limit " << "fd=" << event_->GetFD());
+	LOG_DEBUG("listener reached starvation limit " << "id=" << id_);
 
-	event_->Ready(READ_FLAG);
+	ReadyEvent(READ_FLAG);
 }
 
 }

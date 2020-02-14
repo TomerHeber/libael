@@ -42,6 +42,7 @@ private:
 	int GetFlags() const override;
 
 	std::weak_ptr<NewConnectionHandler> new_connection_handler_;
+	int fd_;
 };
 
 }

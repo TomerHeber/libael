@@ -50,6 +50,22 @@ public:
 	}
 };
 
+class StreamBufferHandlerEOFCount : public StreamBufferHandler, public WaitCount {
+public:
+	StreamBufferHandlerEOFCount(int expected_count, const chrono::milliseconds &wait_time) : WaitCount(expected_count, wait_time) {}
+	virtual ~StreamBufferHandlerEOFCount() {}
+
+	void HandleData(std::shared_ptr<StreamBuffer> stream_buffer, const DataView &data_view) override {}
+
+	void HandleConnected(std::shared_ptr<StreamBuffer> stream_buffer) override {
+		throw "should not be able to successfully connect";
+	}
+
+	void HandleEOF(std::shared_ptr<StreamBuffer> stream_buffer) override {
+		Dec();
+	}
+};
+
 class StreamBufferHandlerPongCount : public StreamBufferHandler, public WaitCount, public std::enable_shared_from_this<StreamBufferHandlerPongCount> {
 public:
 	StreamBufferHandlerPongCount(int expected_count, const chrono::milliseconds &wait_time) : WaitCount(expected_count, wait_time) {
@@ -64,6 +80,7 @@ public:
 
 	void HandleConnected(std::shared_ptr<StreamBuffer> stream_buffer) override {
 		auto ping_msg = string("ping");
+		LOG_TRACE("writing ping");
 		stream_buffer->Write(ping_msg.substr(0, 2));
 		stream_buffer->Write(ping_msg.substr(2, 1));
 		stream_buffer->Write(ping_msg.substr(3, 1));
@@ -73,6 +90,7 @@ public:
 		string &str = strings_[stream_buffer];
 		data_view.AppendToString(str);
 		if (str == "pong") {
+			LOG_TRACE("received pong");
 			Dec();
 		} else if (str.length() > 4) {
 			throw "string too long";
@@ -109,13 +127,14 @@ public:
 	}
 
 	void HandleConnected(std::shared_ptr<StreamBuffer> stream_buffer) override {
-		throw "should not occur - all connections should already be connected";
+		Dec();
 	}
 
 	void HandleData(std::shared_ptr<StreamBuffer> stream_buffer, const DataView &data_view) override {
 		string &str = strings_[stream_buffer];
 		data_view.AppendToString(str);
 		if (str == "ping") {
+			LOG_TRACE("received ping writing pong");
 			auto pong_msg = string("pong");
 			stream_buffer->Write(pong_msg);
 			stream_buffer->Close();
@@ -194,13 +213,13 @@ TEST(StreamBuffer, Basic) {
 	auto count = 50;
 	in_port_t port = uniform_port_dist(mt);
 
-	auto new_connection_handler = make_shared<NewConnectionHandlerCount>(count, 5000ms);
+	auto new_connection_handler = make_shared<NewConnectionHandlerCount>(count, 2000ms);
 	auto stream_listener = StreamListener::Create(new_connection_handler, "127.0.0.1", port);
 	auto event_loop1 = EventLoop::Create();
 	event_loop1->Attach(stream_listener);
 
 	auto event_loop2 = EventLoop::Create();
-	auto stream_buffer_handler = make_shared<StreamBufferHandlerCount>(count * 2, 5000ms);
+	auto stream_buffer_handler = make_shared<StreamBufferHandlerCount>(count * 2, 2000ms);
 
 	vector<shared_ptr<StreamBuffer>> m_streams;
 
@@ -214,22 +233,30 @@ TEST(StreamBuffer, Basic) {
 }
 
 TEST(StreamBuffer, PingPong) {
-	auto count = 30;
+	auto count = 50;
 	in_port_t port = uniform_port_dist(mt);
 
 	auto event_loop = EventLoop::Create();
 
-	auto ping_server = make_shared<PingServer>(count, 10000ms);
+	auto ping_server = make_shared<PingServer>(count * 2, 2000ms);
 	auto ping_server_listener = StreamListener::Create(ping_server, "127.0.0.1", port);
 	event_loop->Attach(ping_server_listener);
 
-	auto stream_buffer_handler = make_shared<StreamBufferHandlerPongCount>(count * 2, 10000ms);
+	auto stream_buffer_handler = make_shared<StreamBufferHandlerPongCount>(count * 2, 2000ms);
 	for (auto i = 0; i < count; i++) {
 		stream_buffer_handler->Connect("127.0.0.1", port);
 	}
 
 	stream_buffer_handler->Wait();
 	ping_server->Wait();
+}
+
+TEST(StreamBuffer, ConnectFailure) {
+	auto event_loop = EventLoop::Create();
+	auto stream_buffer_handler = make_shared<StreamBufferHandlerEOFCount>(1, 1000ms);
+	auto stream_buffer = StreamBuffer::Create(stream_buffer_handler, "127.0.0.1", 999);
+	event_loop->Attach(stream_buffer);
+	stream_buffer_handler->Wait();
 }
 
 int main(int argc, char **argv)

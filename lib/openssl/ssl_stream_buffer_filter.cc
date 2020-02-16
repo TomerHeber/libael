@@ -25,7 +25,7 @@ SSLStreamBufferFilter::~SSLStreamBufferFilter() {
 	SSL_free(ssl_);
 }
 
-void SSLStreamBufferFilter::Connect() {
+ConnectResult SSLStreamBufferFilter::Connect() {
 
 /*
 	auto ret = SSL_connect(ssl_);

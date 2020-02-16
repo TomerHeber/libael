@@ -35,11 +35,12 @@ TCPStreamBufferFilter::~TCPStreamBufferFilter() {}
 std::shared_ptr<TCPStreamBufferFilter> TCPStreamBufferFilter::Create(std::shared_ptr<StreamBuffer> stream_buffer, int fd, bool connected) {
 	LOG_TRACE("creating a tcp stream buffer filter fd=" << fd);
 	return std::shared_ptr<TCPStreamBufferFilter>(new TCPStreamBufferFilter(stream_buffer, fd, connected));
-
 }
 
-InResult TCPStreamBufferFilter::In(std::uint8_t *buf, std::uint32_t buf_size) {
-	auto read_ret_ = recv(fd_, buf, buf_size, MSG_DONTWAIT);
+InResult TCPStreamBufferFilter::In() {
+	std::uint8_t buf[100000];
+
+	auto read_ret_ = recv(fd_, buf, sizeof(buf), MSG_DONTWAIT);
 
 	switch (read_ret_) {
 	case 0:
@@ -49,7 +50,7 @@ InResult TCPStreamBufferFilter::In(std::uint8_t *buf, std::uint32_t buf_size) {
 		switch (errno) {
 		case EAGAIN:
 			LOG_DEBUG("read would block " << this);
-			return InResult::CreateWouldBlock();
+			return InResult();
 		case EFAULT:
 		case EINVAL:
 		case ENOTCONN:
@@ -63,9 +64,8 @@ InResult TCPStreamBufferFilter::In(std::uint8_t *buf, std::uint32_t buf_size) {
 		break;
 	default:
 		LOG_DEBUG("read " << read_ret_ << " bytes " << this);
-		return InResult::CreateHasData(buf, read_ret_);
+		return InResult(buf, read_ret_);
 	}
-
 }
 
 OutResult TCPStreamBufferFilter::Out(std::list<std::shared_ptr<const DataView>> &out_list) {
@@ -113,12 +113,21 @@ OutResult TCPStreamBufferFilter::Out(std::list<std::shared_ptr<const DataView>> 
 	return OutResult();
 }
 
-void TCPStreamBufferFilter::Connect() {
+ConnectResult TCPStreamBufferFilter::Accept() {
+	LOG_TRACE("accept " << this);
+
+	if (pending_connect_) {
+		return ConnectResult::CreateSuccess();
+	}
+
+	throw "unexpected use case - connection should already be accepted";
+}
+
+ConnectResult TCPStreamBufferFilter::Connect() {
 	LOG_TRACE("connect " << this);
 
 	if (pending_connect_) {
-		connected_ = true;
-		return;
+		return ConnectResult::CreateSuccess();
 	}
 
 	int socket_error;
@@ -130,13 +139,11 @@ void TCPStreamBufferFilter::Connect() {
 
 	if (socket_error != 0) {
 		LOG_DEBUG("connect - failed on socket error " << this << " socket_error=" << std::strerror(socket_error));
-		read_closed_ = true;
-		write_closed_ = true;
-		return;
+		return ConnectResult::CreateFailed();
 	}
 
-	connected_ = true;
 	LOG_DEBUG("connect - complete " << this);
+	return ConnectResult::CreateSuccess();
 }
 
 } /* namespace ael */

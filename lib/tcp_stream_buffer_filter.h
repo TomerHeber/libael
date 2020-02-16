@@ -22,10 +22,11 @@ public:
 	friend std::ostream& operator<<(std::ostream &out, const TCPStreamBufferFilter *filter);
 
 private:
-	InResult In(std::uint8_t *buf, std::uint32_t buf_size) override;
+	InResult In() override;
 	OutResult Out(std::list<std::shared_ptr<const DataView>> &out_list) override;
 
-	void Connect() override;
+	ConnectResult Connect() override;
+	ConnectResult Accept() override;
 
 	int fd_;
 	bool pending_connect_;

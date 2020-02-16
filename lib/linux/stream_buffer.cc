@@ -27,23 +27,33 @@ std::ostream& operator<<(std::ostream &out, const StreamBuffer *stream_buffer) {
 	return out;
 }
 
-StreamBuffer::StreamBuffer(std::shared_ptr<StreamBufferHandler> stream_buffer_handler, int fd) :
+StreamBuffer::StreamBuffer(std::shared_ptr<StreamBufferHandler> stream_buffer_handler, int fd, StreamBufferMode mode) :
 		EventHandler(fd),
 		stream_buffer_handler_(stream_buffer_handler),
 		add_filter_allowed_(true),
 		eof_called_(false),
-		should_close_(false) {
+		should_close_(false),
+		mode_(mode) {
 	LOG_TRACE("stream buffer created " << this);
 }
 
-std::shared_ptr<StreamBuffer> StreamBuffer::Create(std::shared_ptr<StreamBufferHandler> stream_buffer_handler, int fd) {
-	std::shared_ptr<StreamBuffer> stream_buffer(new StreamBuffer(stream_buffer_handler, fd));
+
+std::shared_ptr<StreamBuffer> StreamBuffer::Create(std::shared_ptr<StreamBufferHandler> stream_buffer_handler, int fd, StreamBufferMode mode) {
+	std::shared_ptr<StreamBuffer> stream_buffer(new StreamBuffer(stream_buffer_handler, fd, mode));
 	auto tcp_stream_buffer_filter = TCPStreamBufferFilter::Create(stream_buffer, fd, true);
 	stream_buffer->AddStreamBufferFilter(tcp_stream_buffer_filter);
 	return stream_buffer;
 }
 
-std::shared_ptr<StreamBuffer> StreamBuffer::Create(std::shared_ptr<StreamBufferHandler> stream_buffer_handler, const std::string &ip_addr, in_port_t port) {
+std::shared_ptr<StreamBuffer> StreamBuffer::CreateForServer(std::shared_ptr<StreamBufferHandler> stream_buffer_handler, int fd) {
+	return Create(stream_buffer_handler, fd, SERVER_MODE);
+}
+
+std::shared_ptr<StreamBuffer> StreamBuffer::CreateForClient(std::shared_ptr<StreamBufferHandler> stream_buffer_handler, int fd) {
+	return Create(stream_buffer_handler, fd, CLIENT_MODE);
+}
+
+std::shared_ptr<StreamBuffer> StreamBuffer::CreateForClient(std::shared_ptr<StreamBufferHandler> stream_buffer_handler, const std::string &ip_addr, in_port_t port) {
 	sockaddr *addr = nullptr;
 	socklen_t addr_len;
 	sa_family_t domain;
@@ -97,7 +107,7 @@ std::shared_ptr<StreamBuffer> StreamBuffer::Create(std::shared_ptr<StreamBufferH
 		}
 	}
 
-	std::shared_ptr<StreamBuffer> stream_buffer(new StreamBuffer(stream_buffer_handler, fd));
+	std::shared_ptr<StreamBuffer> stream_buffer(new StreamBuffer(stream_buffer_handler, fd, CLIENT_MODE));
 	auto tcp_stream_buffer_filter = TCPStreamBufferFilter::Create(stream_buffer, fd, is_connected);
 	stream_buffer->AddStreamBufferFilter(tcp_stream_buffer_filter);
 	return stream_buffer;
@@ -252,16 +262,32 @@ void StreamBuffer::DoClose() {
 }
 
 void StreamBuffer::DoConnect(std::shared_ptr<StreamBufferHandler> stream_buffer_handler) {
-	LOG_TRACE("connect " << this);
+	auto filter = stream_filters_.back();
 
-	stream_filters_.back()->Connect();
-	if (IsConnected()) {
-		LOG_DEBUG("connect complete " << this);
+	ConnectResult connect_result;
+
+	if (mode_ == CLIENT_MODE) {
+		LOG_TRACE("connect " << this);
+		connect_result = filter->Connect();
+	} else {
+		LOG_TRACE("accept " << this);
+		connect_result = filter->Accept();
+	}
+
+	if (connect_result.IsFailed()) {
+		LOG_DEBUG((mode_ == CLIENT_MODE ? "connect" : "accept") << " failed " << this);
+		filter->read_closed_ = true;
+		filter->write_closed_ = true;
+	} else if (connect_result.IsSuccess()) {
+		LOG_DEBUG((mode_ == CLIENT_MODE ? "connect" : "accept") << " complete " << this);
+		filter->connected_ = true;
 		add_filter_allowed_ = true;
 		stream_buffer_handler->HandleConnected(shared_from_this());
 		add_filter_allowed_ = false;
 		ModifyEvent();
 		ReadyEvent(READ_FLAG | WRITE_FLAG);
+	} else {
+		LOG_TRACE((mode_ == CLIENT_MODE ? "connect" : "accept") << " pending " << this);
 	}
 }
 
@@ -349,23 +375,20 @@ void StreamBufferFilter::Write(const std::list<std::shared_ptr<const DataView>> 
 void StreamBufferFilter::Read() {
 	LOG_TRACE("read " << this);
 
-	std::uint8_t buf[65536];
-
 	while (true) {
-		auto in_result = In(buf, sizeof(buf));
+		auto in_result = In();
 
 		if (in_result.ShouldCloseRead()) {
 			read_closed_ = true;
+			return;
 		}
 
-		if (in_result.HasData()) {
-			auto data_view = in_result.GetData();
-			HandleData(data_view);
+		if (!in_result.HasData()) {
+			return;
 		}
 
-		if (!in_result.HasMore()) {
-			break;
-		}
+		auto data_view = in_result.GetData();
+		HandleData(data_view);
 	}
 }
 
@@ -374,7 +397,7 @@ void StreamBufferFilter::Close() {
 
 	read_closed_ = true;
 
-	if (pending_out_.empty()) {
+	if (pending_out_.empty() || !IsConnected()) {
 		LOG_TRACE("write closed " << this);
 		write_closed_ = true;
 		return;
@@ -391,7 +414,7 @@ void StreamBufferFilter::Close() {
 	LOG_TRACE("cannot close more data to flush out " << this);
 }
 
-void StreamBufferFilter::HandleData(const DataView &data_view) {
+void StreamBufferFilter::HandleData(std::shared_ptr<const DataView> &data_view) {
 	auto stream_buffer = stream_buffer_.lock();
 	if (!stream_buffer) {
 		LOG_WARN("stream buffer has been destroyed " << this);

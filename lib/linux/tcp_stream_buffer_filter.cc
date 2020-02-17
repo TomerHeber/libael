@@ -146,4 +146,9 @@ ConnectResult TCPStreamBufferFilter::Connect() {
 	return ConnectResult::CreateSuccess();
 }
 
+ShutdownResult TCPStreamBufferFilter::Shutdown() {
+	LOG_TRACE("shutdown " << this);
+	return ShutdownResult(true);
+}
+
 } /* namespace ael */

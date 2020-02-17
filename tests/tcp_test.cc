@@ -20,9 +20,9 @@
 using namespace ael;
 using namespace std;
 
-static random_device rd;
-static mt19937_64 mt(rd());
-static uniform_int_distribution<int> uniform_port_dist(10000, 60000);
+static thread_local random_device rd;
+static thread_local mt19937_64 mt(rd());
+static thread_local uniform_int_distribution<int> uniform_port_dist(10000, 60000);
 
 class DummyStreamBufferFilter: public StreamBufferFilter {
 public:
@@ -121,7 +121,17 @@ private:
 		return ConnectResult::CreateSuccess();
 	}
 
+	ShutdownResult Shutdown() override {
+		if (shut_down_received_) {
+			std::list<std::shared_ptr<const DataView>> out_list;
+			out_list.push_back(DataView("#").Save());
+			auto out_result = PrevOut(out_list);
+		}
+		return ShutdownResult(true);
+	}
+
 	bool close_next_in_;
+	bool shut_down_received_;
 
 };
 
@@ -184,6 +194,10 @@ private:
 	unordered_map<std::shared_ptr<StreamBuffer>,BufferState> buffers_;
 	shared_ptr<EventLoop> event_loop_;
 };
+
+fsdfsdf //TODO --- fix thread safety in tests and run helgrind!
+fdsfdf // TODO --- fix shutdown in filter.
+fdsfsdf // TODO --- remove is ReadClosed... is WriteClosed getters
 
 class DummyFilterClient : public StreamBufferHandler, public WaitCount, public std::enable_shared_from_this<DummyFilterClient> {
 public:

@@ -26,9 +26,19 @@ private:
 	InResult In() override;
 	OutResult Out(std::list<std::shared_ptr<const DataView>> &out_list) override;
 
+	ConnectResult ConnectOrAccept(bool isConnect);
+
+	enum BIOResult { Success, WouldBlock, Failed };
+
+	BIOResult HandleErr(int err);
+	BIOResult DoBIOIn();
+	BIOResult DoBIOOut();
+
 	SSL *ssl_;
 	BIO *rbio_;
 	BIO *wbio_;
+
+	bool mode_set_;
 };
 
 } /* namespace ael */

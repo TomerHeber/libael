@@ -320,7 +320,7 @@ bool StreamBuffer::IsReadClosed() const {
 	for (auto filter_it = stream_filters_.rbegin(); filter_it != stream_filters_.rend(); ++filter_it) {
 		auto filter = *filter_it;
 		if (!filter->IsReadClosed()) {
-			LOG_TRACE("found a filter open for read " << filter);
+			LOG_TRACE("read is not closed - found a filter open for read " << filter);
 			return false;
 		}
 	}
@@ -332,7 +332,7 @@ bool StreamBuffer::IsReadClosed() const {
 bool StreamBuffer::IsWriteClosed() const {
 	for (auto filter : stream_filters_) {
 		if (!filter->IsWriteClosed()) {
-			LOG_TRACE("found a filter open for write " << filter);
+			LOG_TRACE("write is not closed found a filter open for write " << filter);
 			return false;
 		}
 	}
@@ -350,8 +350,8 @@ std::ostream& operator<<(std::ostream &out, const StreamBufferFilter *filter) {
 	return out;
 }
 
-StreamBufferFilter::StreamBufferFilter(std::shared_ptr<StreamBuffer> stream_buffer, bool connected) :
-		connected_(connected),
+StreamBufferFilter::StreamBufferFilter(std::shared_ptr<StreamBuffer> stream_buffer) :
+		connected_(false),
 		read_closed_(false),
 		write_closed_(false),
 		prev_(nullptr),
@@ -393,25 +393,35 @@ void StreamBufferFilter::Read() {
 }
 
 void StreamBufferFilter::Close() {
-	LOG_TRACE("close " << this);
+	LOG_TRACE("close " << this << " write_closed=" << write_closed_ << " pending_out=" << !pending_out_.empty())
 
-	read_closed_ = true;
-
-	if (pending_out_.empty() || !IsConnected()) {
-		LOG_TRACE("write closed " << this);
-		write_closed_ = true;
+	if (pending_out_.empty() || write_closed_) {
+		if (Shutdown().IsComplete()) {
+			LOG_TRACE("shutdown is complete " << this)
+			write_closed_ = true;
+			read_closed_ = true;
+		}
 		return;
 	}
+
+	LOG_TRACE("flushing pending out data " << this)
 
 	auto out_result = Out(pending_out_);
 
-	if (pending_out_.empty() || out_result.ShouldCloseWrite()) {
-		LOG_TRACE("write closed after flush " << this);
+	if (out_result.ShouldCloseWrite()) {
 		write_closed_ = true;
+	}
+
+	if (pending_out_.empty() || write_closed_) {
+		if (Shutdown().IsComplete()) {
+			LOG_TRACE("shutdown is complete" << this)
+			write_closed_ = true;
+			read_closed_ = true;
+		}
 		return;
 	}
 
-	LOG_TRACE("cannot close more data to flush out " << this);
+	LOG_TRACE("cannot close more data to flush out " << this << " write_closed=" << write_closed_ << " pending_out=" << !pending_out_.empty())
 }
 
 void StreamBufferFilter::HandleData(std::shared_ptr<const DataView> &data_view) {

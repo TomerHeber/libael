@@ -24,9 +24,9 @@ public:
 private:
 	InResult In() override;
 	OutResult Out(std::list<std::shared_ptr<const DataView>> &out_list) override;
-
 	ConnectResult Connect() override;
 	ConnectResult Accept() override;
+	ShutdownResult Shutdown() override;
 
 	int fd_;
 	bool pending_connect_;

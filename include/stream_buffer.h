@@ -80,26 +80,22 @@ private:
 	std::uint8_t status_;
 };
 
+class ShutdownResult {
+public:
+	ShutdownResult(bool complete) : complete_(complete) {}
+
+	bool IsComplete() const { return complete_; }
+
+private:
+	bool complete_;
+};
+
 class StreamBufferFilter {
 public:
-	StreamBufferFilter(std::shared_ptr<StreamBuffer> stream_buffer, bool connected_ = false);
+	StreamBufferFilter(std::shared_ptr<StreamBuffer> stream_buffer);
 	virtual ~StreamBufferFilter() {}
 
 	friend std::ostream& operator<<(std::ostream &out, const StreamBufferFilter *filter);
-
-	virtual ConnectResult Connect() = 0;
-	virtual ConnectResult Accept() = 0;
-
-	void Write(const std::list<std::shared_ptr<const DataView>> &write_list);
-	void Read();
-	void Close();
-	int GetFlags() const;
-
-	bool IsReadClosed() const { return read_closed_; }
-	bool IsWriteClosed() const { return write_closed_; }
-	bool IsConnected() const { return connected_ ; }
-
-	void ConnectFailed() { read_closed_ = true; write_closed_ = true; }
 
 protected:
 	bool HasPrev() const { return prev_ != nullptr; }
@@ -112,7 +108,9 @@ protected:
 
 	virtual InResult In() = 0;
 	virtual OutResult Out(std::list<std::shared_ptr<const DataView>> &out_list) = 0;
-
+	virtual ShutdownResult Shutdown() = 0;
+	virtual ConnectResult Connect() = 0;
+	virtual ConnectResult Accept() = 0;
 
 private:
 	bool connected_;
@@ -124,6 +122,11 @@ private:
 	const std::uint64_t id_;
 	std::uint32_t order_;
 	std::list<std::shared_ptr<const DataView>> pending_out_;
+
+	void Write(const std::list<std::shared_ptr<const DataView>> &write_list);
+	void Read();
+	void Close();
+	int GetFlags() const;
 
 	friend StreamBuffer;
 };

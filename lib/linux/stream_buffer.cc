@@ -199,7 +199,7 @@ void StreamBuffer::DoRead() {
 
 	auto filter = stream_filters_.back();
 
-	if (filter->IsReadClosed()) {
+	if (filter->read_closed_) {
 		LOG_TRACE("filter read closed " << filter);
 		return;
 	}
@@ -212,7 +212,7 @@ void StreamBuffer::DoWrite() {
 
 	auto filter = stream_filters_.back();
 
-	if (filter->IsWriteClosed()) {
+	if (filter->write_closed_) {
 		LOG_TRACE("filter write closed " << filter);
 		return;
 	}
@@ -236,7 +236,7 @@ void StreamBuffer::DoClose() {
 
 	auto should_flush = true;
 	for (auto filter : stream_filters_) {
-		if (filter->IsWriteClosed()) {
+		if (filter->write_closed_) {
 			should_flush = false;
 			break;
 		}
@@ -249,13 +249,13 @@ void StreamBuffer::DoClose() {
 
 	for (auto filter_it = stream_filters_.rbegin(); filter_it != stream_filters_.rend(); ++filter_it) {
 		auto filter = *filter_it;
-		if (!filter->IsReadClosed() || !filter->IsWriteClosed()) {
+		if (!filter->read_closed_ || !filter->write_closed_) {
 			LOG_TRACE("calling close on filter " << filter);
 			filter->Close();
 		}
 
-		if (!filter->IsReadClosed() || !filter->IsWriteClosed()) {
-			LOG_TRACE("close on filter - delayed " << filter << " filter_read_closed=" << filter->IsReadClosed() << " filter_write_closed=" << filter->IsWriteClosed());
+		if (!filter->read_closed_ || !filter->write_closed_) {
+			LOG_TRACE("close on filter - delayed " << filter << " filter_read_closed=" << filter->read_closed_ << " filter_write_closed=" << filter->write_closed_);
 			break;
 		}
 	}
@@ -296,7 +296,7 @@ void StreamBuffer::DoFinalize(std::shared_ptr<StreamBufferHandler> stream_buffer
 
 	auto filter = stream_filters_.back();
 
-	if (!should_close_ && filter->IsReadClosed()) {
+	if (!should_close_ && filter->read_closed_) {
 		LOG_TRACE("filter is read closed " << filter);
 		should_close_ = true;
 		DoClose();
@@ -313,13 +313,13 @@ void StreamBuffer::DoFinalize(std::shared_ptr<StreamBufferHandler> stream_buffer
 }
 
 bool StreamBuffer::IsConnected() const {
-	return stream_filters_.back()->IsConnected();
+	return stream_filters_.back()->connected_;
 }
 
 bool StreamBuffer::IsReadClosed() const {
 	for (auto filter_it = stream_filters_.rbegin(); filter_it != stream_filters_.rend(); ++filter_it) {
 		auto filter = *filter_it;
-		if (!filter->IsReadClosed()) {
+		if (!filter->read_closed_) {
 			LOG_TRACE("read is not closed - found a filter open for read " << filter);
 			return false;
 		}
@@ -331,7 +331,7 @@ bool StreamBuffer::IsReadClosed() const {
 
 bool StreamBuffer::IsWriteClosed() const {
 	for (auto filter : stream_filters_) {
-		if (!filter->IsWriteClosed()) {
+		if (!filter->write_closed_) {
 			LOG_TRACE("write is not closed found a filter open for write " << filter);
 			return false;
 		}

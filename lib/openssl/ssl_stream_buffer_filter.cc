@@ -185,5 +185,17 @@ SSLStreamBufferFilter::BIOResult SSLStreamBufferFilter::DoBIOOut() {
 	return Success;
 }
 
+SSLStreamBufferFilter::BIOResult SSLStreamBufferFilter::DoBIOIn() {
+	LOG_TRACE("in prev and write rbio" << this)
+
+	BUF_MEM *buf_mem = NULL;
+	BIO_get_mem_ptr(rbio_, buf_mem);
+
+	if (buf_mem->length == buf_mem->max) {
+		LOG_ERROR("rbio is full");
+		return Success;
+	}
+}
+
 
 } /* namespace ael */

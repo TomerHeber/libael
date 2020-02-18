@@ -26,7 +26,7 @@ static thread_local uniform_int_distribution<int> uniform_port_dist(10000, 60000
 
 class DummyStreamBufferFilter: public StreamBufferFilter {
 public:
-	DummyStreamBufferFilter(std::shared_ptr<StreamBuffer> stream_buffer) : StreamBufferFilter(stream_buffer), close_next_in_(false) {}
+	DummyStreamBufferFilter(std::shared_ptr<StreamBuffer> stream_buffer) : StreamBufferFilter(stream_buffer), shutdown_sent_(false), shutdown_received_(false) {}
 	virtual ~DummyStreamBufferFilter() {}
 
 	friend std::ostream& operator<<(std::ostream &out, const DummyStreamBufferFilter *filter) {
@@ -37,8 +37,7 @@ public:
 
 private:
 	InResult In() override {
-		if (close_next_in_) {
-			LOG_TRACE("close_next_in proceeding to shutdown " << this)
+		if (shutdown_received_) {
 			return InResult::CreateShouldClose();
 		}
 
@@ -61,14 +60,11 @@ private:
 		LOG_TRACE("in result data: " << in_str << " removing all * " << this);
 
 		if (in_str.find('#') != string::npos) {
-			LOG_TRACE("other side is closing (found #)" << this);
+			LOG_TRACE("shutdown received " << this);
+			shutdown_received_ = true;
 			in_str.erase(std::remove(in_str.begin(), in_str.end(), '#'), in_str.end());
 			if (in_str.empty()) {
-				LOG_TRACE("shut down now string empty " << this)
 				return InResult::CreateShouldClose();
-			} else {
-				LOG_TRACE("shut down later string not empty " << this)
-				close_next_in_ = true;
 			}
 		}
 
@@ -101,15 +97,6 @@ private:
 			return out_result;
 		}
 
-		if (IsReadClosed() && out_list.empty()) {
-			LOG_TRACE("read is closed and everything has been flushed send close signal #" << this)
-			out_list.push_back(DataView("#").Save());
-			auto out_result_inner = PrevOut(out_list);
-			if (out_list.empty() || out_result_inner.ShouldCloseWrite()) {
-				return OutResult::CreateShouldClose();
-			}
-		}
-
 		return out_result;
 	}
 
@@ -122,17 +109,55 @@ private:
 	}
 
 	ShutdownResult Shutdown() override {
-		if (shut_down_received_) {
+		if (!shutdown_sent_) {
+			LOG_TRACE("sending shutdown " << this);
+
 			std::list<std::shared_ptr<const DataView>> out_list;
 			out_list.push_back(DataView("#").Save());
 			auto out_result = PrevOut(out_list);
+
+			if (out_list.empty()) {
+				LOG_TRACE("sent shutdown" << this);
+				shutdown_sent_ = true;
+			} else if (out_result.ShouldCloseWrite()) {
+				LOG_TRACE("failed to send shutdown - write closed" << this);
+				throw "unclean shutdown";
+				return ShutdownResult(true);
+			}
 		}
-		return ShutdownResult(true);
+
+		if (!shutdown_received_) {
+			LOG_TRACE("receive shutdown " << this);
+
+			auto in_result = PrevIn();
+
+			if (in_result.ShouldCloseRead()) {
+				LOG_TRACE("unable to receive shutdown - read closed " << this)
+				throw "unclean shutdown";
+				return ShutdownResult(true);
+			}
+
+			if (in_result.HasData()) {
+				string in_str;
+				in_result.GetData()->AppendToString(in_str);
+				LOG_TRACE("in result data " << this << " " << in_str);
+				if (in_str.find('#') != string::npos) {
+					LOG_TRACE("received shutdown" << this);
+					shutdown_received_ = true;
+				}
+			}
+
+		}
+
+		if (shutdown_sent_ && shutdown_received_) {
+			LOG_TRACE("shutdown complete clean " << this);
+		}
+
+		return ShutdownResult(shutdown_sent_ && shutdown_received_);
 	}
 
-	bool close_next_in_;
-	bool shut_down_received_;
-
+	bool shutdown_sent_;
+	bool shutdown_received_;
 };
 
 class DummyFilterServer : public NewConnectionHandler, public WaitCount, public StreamBufferHandler, public std::enable_shared_from_this<DummyFilterServer>  {
@@ -146,17 +171,23 @@ public:
 		auto stream_buffer = StreamBuffer::CreateForServer(shared_from_this(), fd);
 		BufferState buffer_state;
 		buffer_state.upgraded = false;
+		lock_.lock();
 		buffers_[stream_buffer] = buffer_state;
+		lock_.unlock();
 		event_loop_->Attach(stream_buffer);
 	}
 
 	void HandleEOF(std::shared_ptr<StreamBuffer> stream_buffer) override {
+		lock_.lock();
 		ASSERT_EQ(1, buffers_.erase(stream_buffer));
+		lock_.unlock();
 		Dec();
 	}
 
 	void HandleConnected(std::shared_ptr<StreamBuffer> stream_buffer) override {
+		lock_.lock();
 		BufferState &buffer_state = buffers_[stream_buffer];
+		lock_.unlock();
 
 		if (!buffer_state.upgraded) {
 			LOG_TRACE("adding filter to stream_buffer " << stream_buffer);
@@ -167,7 +198,9 @@ public:
 	}
 
 	void HandleData(std::shared_ptr<StreamBuffer> stream_buffer, std::shared_ptr<const DataView> &data_view) override {
+		lock_.lock();
 		BufferState &buffer_state = buffers_[stream_buffer];
+		lock_.unlock();
 		string &str = buffer_state.buf;
 
 		data_view->AppendToString(str);
@@ -191,13 +224,10 @@ private:
 		string buf;
 	};
 
+	mutex lock_;
 	unordered_map<std::shared_ptr<StreamBuffer>,BufferState> buffers_;
 	shared_ptr<EventLoop> event_loop_;
 };
-
-fsdfsdf //TODO --- fix thread safety in tests and run helgrind!
-fdsfdf // TODO --- fix shutdown in filter.
-fdsfsdf // TODO --- remove is ReadClosed... is WriteClosed getters
 
 class DummyFilterClient : public StreamBufferHandler, public WaitCount, public std::enable_shared_from_this<DummyFilterClient> {
 public:
@@ -207,12 +237,16 @@ public:
 	virtual ~DummyFilterClient() {}
 
 	void HandleEOF(std::shared_ptr<StreamBuffer> stream_buffer) override {
+		lock_.lock();
 		ASSERT_EQ(1, buffers_.erase(stream_buffer));
+		lock_.unlock();
 		Dec();
 	}
 
 	void HandleConnected(std::shared_ptr<StreamBuffer> stream_buffer) override {
+		lock_.lock();
 		BufferState &buffer_state = buffers_[stream_buffer];
+		lock_.unlock();
 
 		if (!buffer_state.upgraded) {
 			LOG_TRACE("adding filter to stream_buffer " << stream_buffer);
@@ -229,7 +263,9 @@ public:
 	}
 
 	void HandleData(std::shared_ptr<StreamBuffer> stream_buffer, std::shared_ptr<const DataView> &data_view) override {
+		lock_.lock();
 		BufferState &buffer_state = buffers_[stream_buffer];
+		lock_.unlock();
 		string &str = buffer_state.buf;
 
 		data_view->AppendToString(str);
@@ -250,7 +286,9 @@ public:
 		auto stream_buffer = StreamBuffer::CreateForClient(shared_from_this(), host, port);
 		BufferState buffer_state;
 		buffer_state.upgraded = false;
+		lock_.lock();
 		buffers_[stream_buffer] = buffer_state;
+		lock_.unlock();
 		event_loop_->Attach(stream_buffer);
 	}
 
@@ -260,6 +298,7 @@ private:
 		string buf;
 	};
 
+	mutex lock_;
 	unordered_map<std::shared_ptr<StreamBuffer>,BufferState> buffers_;
 	shared_ptr<EventLoop> event_loop_;
 };
@@ -315,7 +354,9 @@ public:
 	virtual ~StreamBufferHandlerPongCount() {}
 
 	void HandleEOF(std::shared_ptr<StreamBuffer> stream_buffer) override {
+		lock_.lock();
 		ASSERT_EQ(1, strings_.erase(stream_buffer));
+		lock_.unlock();
 		Dec();
 	}
 
@@ -328,7 +369,9 @@ public:
 	}
 
 	void HandleData(std::shared_ptr<StreamBuffer> stream_buffer, std::shared_ptr<const DataView> &data_view) override {
+		lock_.lock();
 		string &str = strings_[stream_buffer];
+		lock_.unlock();
 		data_view->AppendToString(str);
 		if (str == "pong") {
 			LOG_TRACE("received pong");
@@ -340,11 +383,14 @@ public:
 
 	void Connect(const string &host, in_port_t port) {
 		auto stream_buffer = StreamBuffer::CreateForClient(shared_from_this(), host, port);
+		lock_.lock();
 		strings_[stream_buffer] = "";
+		lock_.unlock();
 		event_loop_->Attach(stream_buffer);
 	}
 
 private:
+	mutex lock_;
 	unordered_map<std::shared_ptr<StreamBuffer>,string> strings_;
 	shared_ptr<EventLoop> event_loop_;
 };
@@ -358,12 +404,16 @@ public:
 
 	void HandleNewConnection(int fd) override {
 		auto stream_buffer = StreamBuffer::CreateForServer(shared_from_this(), fd);
+		lock_.lock();
 		strings_[stream_buffer] = "";
+		lock_.unlock();
 		event_loop_->Attach(stream_buffer);
 	}
 
 	void HandleEOF(std::shared_ptr<StreamBuffer> stream_buffer) override {
+		lock_.lock();
 		ASSERT_EQ(1, strings_.erase(stream_buffer));
+		lock_.unlock();
 		Dec();
 	}
 
@@ -372,7 +422,9 @@ public:
 	}
 
 	void HandleData(std::shared_ptr<StreamBuffer> stream_buffer, std::shared_ptr<const DataView> &data_view) override {
+		lock_.lock();
 		string &str = strings_[stream_buffer];
+		lock_.unlock();
 		data_view->AppendToString(str);
 		if (str == "ping") {
 			LOG_TRACE("received ping writing pong");
@@ -385,6 +437,7 @@ public:
 	}
 
 private:
+	mutex lock_;
 	unordered_map<std::shared_ptr<StreamBuffer>,string> strings_;
 	shared_ptr<EventLoop> event_loop_;
 };

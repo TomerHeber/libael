@@ -133,10 +133,6 @@ void StreamBuffer::AddStreamBufferFilter(std::shared_ptr<StreamBufferFilter> str
 	LOG_DEBUG("attaching filter " << stream_filter);
 
 	stream_filters_.push_back(stream_filter);
-
-	if (stream_filters_.size() > 1) {
-		ModifyEvent();
-	}
 }
 
 void StreamBuffer::Handle(std::uint32_t events) {
@@ -154,9 +150,7 @@ void StreamBuffer::Handle(std::uint32_t events) {
 	} else if (!IsConnected() ) {
 		DoConnect(stream_buffer_handler);
 	} else {
-		if (events & (EPOLLIN | EPOLLRDHUP | EPOLLERR | EPOLLHUP)) {
-			DoRead();
-		}
+		DoRead();
 		DoWrite();
 	}
 
@@ -285,7 +279,6 @@ void StreamBuffer::DoConnect(std::shared_ptr<StreamBufferHandler> stream_buffer_
 		stream_buffer_handler->HandleConnected(shared_from_this());
 		add_filter_allowed_ = false;
 		ModifyEvent();
-		ReadyEvent(READ_FLAG | WRITE_FLAG);
 	} else {
 		LOG_TRACE((mode_ == CLIENT_MODE ? "connect" : "accept") << " pending " << this);
 	}
@@ -365,10 +358,21 @@ void StreamBufferFilter::Write(const std::list<std::shared_ptr<const DataView>> 
 
 	pending_out_.insert(pending_out_.end(), write_list.begin(), write_list.end());
 
-	auto out_result = Out(pending_out_);
+	while (!pending_out_.empty()) {
+		auto data_view = pending_out_.front();
+		pending_out_.pop_front();
 
-	if (out_result.ShouldCloseWrite()) {
-		write_closed_ = true;
+		auto out_result = Out(data_view);
+
+		if (out_result.ShouldCloseWrite()) {
+			write_closed_ = true;
+			return;
+		}
+
+		if (data_view) {
+			pending_out_.push_front(data_view);
+			return;
+		}
 	}
 }
 
@@ -406,10 +410,21 @@ void StreamBufferFilter::Close() {
 
 	LOG_TRACE("flushing pending out data " << this)
 
-	auto out_result = Out(pending_out_);
+	while (!pending_out_.empty()) {
+		auto data_view = pending_out_.front();
+		pending_out_.pop_front();
 
-	if (out_result.ShouldCloseWrite()) {
-		write_closed_ = true;
+		auto out_result = Out(data_view);
+
+		if (out_result.ShouldCloseWrite()) {
+			write_closed_ = true;
+			break;
+		}
+
+		if (data_view) {
+			pending_out_.push_front(data_view);
+			break;
+		}
 	}
 
 	if (pending_out_.empty() || write_closed_) {
@@ -424,7 +439,7 @@ void StreamBufferFilter::Close() {
 	LOG_TRACE("cannot close more data to flush out " << this << " write_closed=" << write_closed_ << " pending_out=" << !pending_out_.empty())
 }
 
-void StreamBufferFilter::HandleData(std::shared_ptr<const DataView> &data_view) {
+void StreamBufferFilter::HandleData(const std::shared_ptr<const DataView> &data_view) {
 	auto stream_buffer = stream_buffer_.lock();
 	if (!stream_buffer) {
 		LOG_WARN("stream buffer has been destroyed " << this);
@@ -441,7 +456,7 @@ void StreamBufferFilter::HandleData(std::shared_ptr<const DataView> &data_view) 
 }
 
 int StreamBufferFilter::GetFlags() const {
-	if (connected_ || order_ > 1) {
+	if (connected_ || order_ > 0) {
 		return READ_FLAG | WRITE_FLAG | STREAM_FLAG;
 	} else {
 		return WRITE_FLAG | STREAM_FLAG;

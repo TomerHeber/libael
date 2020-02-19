@@ -19,12 +19,12 @@ public:
 	SSLStreamBufferFilter(std::shared_ptr<StreamBuffer> stream_buffer, SSL *ssl);
 	virtual ~SSLStreamBufferFilter();
 
-	ConnectResult Connect() override;
-	ConnectResult Accept() override;
-
 private:
 	InResult In() override;
-	OutResult Out(std::list<std::shared_ptr<const DataView>> &out_list) override;
+	OutResult Out(std::shared_ptr<const DataView> &data_view) override;
+	ShutdownResult Shutdown() override;
+	ConnectResult Connect() override;
+	ConnectResult Accept() override;
 
 	ConnectResult ConnectOrAccept(bool isConnect);
 
@@ -39,6 +39,10 @@ private:
 	BIO *wbio_;
 
 	bool mode_set_;
+	bool fatal_error_;
+	bool write_not_allowed_;
+
+	std::shared_ptr<const DataView> wbio_data_view_;
 };
 
 } /* namespace ael */

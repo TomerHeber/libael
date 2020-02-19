@@ -20,10 +20,12 @@ SSLStreamBufferFilter::SSLStreamBufferFilter(std::shared_ptr<StreamBuffer> strea
 		ssl_(ssl),
 		rbio_(BIO_new(BIO_s_mem())),
 		wbio_(BIO_new(BIO_s_mem())),
-		mode_set_(false) {
+		mode_set_(false),
+		fatal_error_(false),
+		write_not_allowed_(false) {
 	SSL_set0_rbio(ssl_, rbio_);
 	SSL_set0_wbio(ssl_, wbio_);
-
+	SSL_set_mode(ssl_, SSL_MODE_ENABLE_PARTIAL_WRITE);
 }
 
 SSLStreamBufferFilter::~SSLStreamBufferFilter() {
@@ -60,7 +62,11 @@ ConnectResult SSLStreamBufferFilter::Accept() {
 }
 
 ConnectResult SSLStreamBufferFilter::ConnectOrAccept(bool isConnect) {
+	LOG_TRACE((isConnect ? "connect " : "accept ") << this)
+
 	while (true) {
+		DoBIOOut();
+
 		ERR_clear_error();
 
 		int ret;
@@ -69,6 +75,8 @@ ConnectResult SSLStreamBufferFilter::ConnectOrAccept(bool isConnect) {
 		} else {
 			ret = SSL_accept(ssl_);
 		}
+
+		auto result = HandleErr(SSL_get_error(ssl_, ret));
 
 		if (ret == 0) {
 			LOG_DEBUG((isConnect ? "connect" : "accept") << " failed " << this << " errors=" << GetErrors());
@@ -80,15 +88,13 @@ ConnectResult SSLStreamBufferFilter::ConnectOrAccept(bool isConnect) {
 			return ConnectResult::CreateSuccess();
 		}
 
-		auto result = HandleErr(SSL_get_error(ssl_, ret));
-
 		if (result == Failed) {
 			LOG_DEBUG((isConnect ? "connect" : "accept") << " failed " << this);
 			return ConnectResult::CreateFailed();
 		}
 
 		if (result == WouldBlock) {
-			LOG_DEBUG((isConnect ? "connect" : "accept") << " pending " << this);
+			LOG_TRACE((isConnect ? "connect" : "accept") << " pending " << this);
 			return ConnectResult::CreatePending();
 		}
 
@@ -96,13 +102,149 @@ ConnectResult SSLStreamBufferFilter::ConnectOrAccept(bool isConnect) {
 	}
 }
 
+InResult SSLStreamBufferFilter::In() {
+	LOG_TRACE("in " << this)
+
+	while (true) {
+		DoBIOOut();
+
+		char buf[16384];
+
+		ERR_clear_error();
+		auto ret = SSL_read(ssl_, buf, sizeof(buf));
+		auto result = HandleErr(SSL_get_error(ssl_, ret));
+
+		if (ret > 0) {
+			LOG_DEBUG("SSL_read received " << ret << " bytes " << this);
+			return InResult(reinterpret_cast<const std::uint8_t*>(buf), ret);
+		}
+
+		if (result == WouldBlock) {
+			LOG_TRACE("read would block " << this);
+			return InResult();
+		}
+
+		if (result == Failed) {
+			LOG_TRACE("read failed " << this);
+			return InResult::CreateShouldClose();
+		}
+
+		LOG_TRACE("read keep trying " << this);
+	}
+}
+
+OutResult SSLStreamBufferFilter::Out(std::shared_ptr<const DataView> &data_view) {
+	LOG_TRACE("out " << this)
+
+	if (write_not_allowed_) {
+		LOG_TRACE("In the process of shutdown SSL_write not allowed " << this);
+		return OutResult::CreateShouldClose();
+	}
+
+	while (true) {
+		DoBIOOut();
+
+		ERR_clear_error();
+		auto ret = SSL_write(ssl_, data_view->GetData(), data_view->GetDataLength());
+		auto result = HandleErr(SSL_get_error(ssl_, ret));
+
+		if (ret > 0) {
+			LOG_DEBUG("SSL_write written " << ret << " bytes " << this);
+			if (ret == data_view->GetDataLength()) {
+				LOG_TRACE("SSL_write all data written " << this);
+				data_view = nullptr;
+				return OutResult();
+			} else {
+				LOG_TRACE("SSL_write there is still data to write " << this);
+				data_view = data_view->Slice(ret).Save();
+			}
+		}
+
+		if (result == WouldBlock) {
+			LOG_TRACE("write would block " << this);
+			return OutResult();
+		}
+
+		if (result == Failed) {
+			LOG_TRACE("write failed " << this);
+			return OutResult::CreateShouldClose();
+		}
+
+		LOG_TRACE("write keep trying " << this);
+	}
+}
+
+ShutdownResult SSLStreamBufferFilter::Shutdown() {
+	auto shutdown_state = SSL_get_shutdown(ssl_);
+
+	LOG_TRACE("shutdown " << this << " state=" << shutdown_state);
+
+	if (fatal_error_) {
+		LOG_TRACE("shutdown complete (fatal error) " << this)
+		return ShutdownResult(true);
+	}
+
+	if (shutdown_state == 0) {
+		write_not_allowed_ = true;
+	}
+
+	if (!(shutdown_state & SSL_SENT_SHUTDOWN)) {
+		LOG_TRACE("sending close_notify " << this)
+		while (true) {
+			ERR_clear_error();
+			auto ret = SSL_shutdown(ssl_);
+
+			if (ret == 0 || ret == 1) {
+				LOG_TRACE("sent close_notify " << this)
+				break;
+			}
+
+			auto result = HandleErr(SSL_get_error(ssl_, ret));
+
+			if (result == WouldBlock) {
+				LOG_TRACE("shutdown would block " << this);
+				return ShutdownResult(false);
+			}
+
+			if (result == Failed) {
+				LOG_TRACE("shutdown failed (dirty)" << this);
+				return ShutdownResult(true);
+			}
+		}
+	}
+
+	auto out_result = DoBIOOut();
+
+	if (out_result == Failed) {
+		LOG_TRACE("shutdown complete (prev out failed) " << this);
+		return ShutdownResult(true);
+	}
+
+	if (out_result == WouldBlock) {
+		LOG_TRACE("shutdown pending (prev out would block) " << this);
+		return ShutdownResult(false);
+	}
+
+	LOG_TRACE("shutdown complete " << this << " state=" << SSL_get_shutdown(ssl_));
+
+	return ShutdownResult(true);
+}
+
 SSLStreamBufferFilter::BIOResult SSLStreamBufferFilter::HandleErr(int err) {
 	LOG_TRACE("handle error " << this << " err=" << err)
 
 	if (err == SSL_ERROR_SYSCALL || err == SSL_ERROR_SSL) {
-		LOG_DEBUG("failed " << this << " errors=" << GetErrors());
+		fatal_error_ = true;
+		LOG_DEBUG("unrecoverable (fatal) SSL error " << this << " errors=" << GetErrors());
 		return Failed;
 	}
+
+	if (err == SSL_ERROR_ZERO_RETURN) {
+		LOG_TRACE("zero return error (shutdown received)" << this)
+		return Failed;
+	}
+
+	auto result_out = DoBIOOut();
 
 	if (err == SSL_ERROR_WANT_READ) {
 		auto result_in = DoBIOIn();
@@ -115,8 +257,6 @@ SSLStreamBufferFilter::BIOResult SSLStreamBufferFilter::HandleErr(int err) {
 			return WouldBlock;
 		}
 	}
-
-	auto result_out = DoBIOOut();
 
 	if (SSL_ERROR_WANT_WRITE) {
 		if (result_out == WouldBlock) {
@@ -134,68 +274,65 @@ SSLStreamBufferFilter::BIOResult SSLStreamBufferFilter::HandleErr(int err) {
 }
 
 SSLStreamBufferFilter::BIOResult SSLStreamBufferFilter::DoBIOOut() {
-	LOG_TRACE("read wbio and out prev" << this)
+	LOG_TRACE("read wbio and out prev " << this)
 
-	BUF_MEM *buf_mem = NULL;
-	BIO_get_mem_ptr(wbio_, buf_mem);
+	while (true) {
+		if (wbio_data_view_ && wbio_data_view_->GetDataLength() > 0) {
+			LOG_TRACE("wbio_data_view has " << wbio_data_view_->GetDataLength() << " bytes")
 
-	if (buf_mem->length == 0) {
-		LOG_TRACE("wbio is empty");
-		return Success;
+			auto out_result = PrevOut(wbio_data_view_);
+
+			if (out_result.ShouldCloseWrite()) {
+				LOG_TRACE("out prev should close write " << this)
+				return Failed;
+			}
+
+			if (wbio_data_view_) {
+				LOG_TRACE("out prev partial write " << this)
+				return WouldBlock;
+			}
+
+			LOG_TRACE("out prev written all data in wbio_data_view")
+		}
+
+		if (BIO_eof(wbio_)) {
+			LOG_TRACE("wbio is empty");
+			return Success;
+		}
+
+		char *data;
+		auto data_len = BIO_get_mem_data(wbio_, &data);
+		wbio_data_view_ = DataView(reinterpret_cast<const std::uint8_t*>(data), data_len).Save();
+		BIO_reset(wbio_);
+
+		LOG_TRACE("wbio has " << data_len << " bytes moving to wbio_data_view")
 	}
-
-	DataView data_view(reinterpret_cast<const std::uint8_t*>(buf_mem->data), buf_mem->length);
-
-	std::list<std::shared_ptr<const DataView>> out_list;
-	out_list.push_back(data_view.Save());
-
-	auto out_result = PrevOut(out_list);
-
-	if (out_result.ShouldCloseWrite()) {
-		LOG_TRACE("out prev failed " << this);
-		return Failed;
-	}
-
-	if (out_list.empty()) {
-		LOG_TRACE("out prev all data was written " << this);
-		buf_mem->length = 0;
-		return Success;
-	}
-
-	if (out_list.size() > 1) {
-		throw "out list unexpected size";
-	}
-
-	auto new_data_view = out_list.front();
-
-	if (new_data_view->GetDataLength() == data_view.GetDataLength()) {
-		LOG_TRACE("out prev no data written (no progress) " << this);
-		return WouldBlock;
-	}
-
-	if (new_data_view->GetDataLength() > data_view.GetDataLength()) {
-		throw "new data view unexpected size";
-	}
-
-	buf_mem->length = new_data_view->GetDataLength();
-	std::memcpy(buf_mem->data, new_data_view->GetData(), new_data_view->GetDataLength());
-
-	LOG_TRACE("out prev some data was written " << this);
-
-	return Success;
 }
 
 SSLStreamBufferFilter::BIOResult SSLStreamBufferFilter::DoBIOIn() {
-	LOG_TRACE("in prev and write rbio" << this)
+	LOG_TRACE("in prev and write rbio " << this)
 
-	BUF_MEM *buf_mem = NULL;
-	BIO_get_mem_ptr(rbio_, buf_mem);
+	auto in_result = PrevIn();
 
-	if (buf_mem->length == buf_mem->max) {
-		LOG_ERROR("rbio is full");
-		return Success;
+	if (in_result.ShouldCloseRead()) {
+		LOG_TRACE("in prev should close read " << this)
+		return Failed;
 	}
-}
 
+	if (!in_result.HasData()) {
+		LOG_TRACE("in prev no data " << this)
+		return WouldBlock;
+	}
+
+	auto data_view = in_result.GetData();
+
+	if (BIO_write(rbio_, data_view->GetData(), data_view->GetDataLength()) != data_view->GetDataLength()) {
+		throw "BIO_write failed (not all data was written - out of memory?)";
+	}
+
+	LOG_TRACE("written " << data_view->GetDataLength() << " bytes to rbio")
+
+	return Success;
+}
 
 } /* namespace ael */

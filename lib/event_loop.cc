@@ -159,17 +159,17 @@ void EventLoop::RemoveInternal(std::shared_ptr<EventHandler> event_handler) {
 	}
 }
 
-EventLoop::ExecuteEventHandler::ExecuteEventHandler(std::function<void()> func, std::weak_ptr<void> instance) :
+EventLoop::ExecuteHandler::ExecuteHandler(std::function<void()> func, std::weak_ptr<void> instance) :
 		func_(func),
 		instance_(instance) {
-	LOG_TRACE("execute event handler is created");
+	LOG_TRACE("execute handler is created");
 }
 
-EventLoop::ExecuteEventHandler::~ExecuteEventHandler() {
-	LOG_TRACE("execute event handler is destroyed");
+EventLoop::ExecuteHandler::~ExecuteHandler() {
+	LOG_TRACE("execute handler is destroyed");
 }
 
-void EventLoop::ExecuteEventHandler::Handle(std::uint32_t events) {
+void EventLoop::ExecuteHandler::Handle(std::uint32_t events) {
 	std::ignore = events;
 
 	auto instance = instance_.lock();
@@ -185,6 +185,15 @@ void EventLoop::ExecuteEventHandler::Handle(std::uint32_t events) {
 	if (event_handler && event_loop) {
 		event_loop->RemoveInternal(event_handler);
 	}
+}
+
+EventLoop::TimerHandler::TimerHandler(int fd, std::function<void()> func, std::weak_ptr<void> instance) :
+		EventHandler(fd), func_(func), instance_(instance) {
+	LOG_TRACE("timer handler is created");
+}
+
+EventLoop::TimerHandler::~TimerHandler() {
+	LOG_TRACE("timer handler is destroyed");
 }
 
 }

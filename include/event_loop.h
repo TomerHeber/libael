@@ -16,10 +16,20 @@
 #include <cstdint>
 #include <atomic>
 #include <functional>
+#include <chrono>
 
 #include "event.h"
+#include "timer_handler.h"
 
 namespace ael {
+
+class Cancellable {
+public:
+	Cancellable() {}
+	virtual ~Cancellable() {}
+
+	virtual void Cancel() = 0;
+};
 
 class EventLoop : public std::enable_shared_from_this<EventLoop> {
 public:
@@ -30,10 +40,16 @@ public:
 
 	template<class Function, class Instance, class... Args>
 	void Execute(Function func, std::shared_ptr<Instance> instance, Args&&... args) {
-		auto execute_event_handler = std::make_shared<ExecuteEventHandler>(std::bind(func, instance.get(), std::forward<Args>(args)...), instance);
-		AttachInternal(execute_event_handler);
+		auto execute_handler = std::make_shared<ExecuteHandler>(std::bind(func, instance.get(), std::forward<Args>(args)...), instance);
+		AttachInternal(execute_handler);
 	}
 
+	template<class Function, class Instance, class... Args>
+	std::shared_ptr<Cancellable> ExecuteAfter(const std::chrono::milliseconds &in, Function func, std::shared_ptr<Instance> instance, Args&&... args) {
+		auto timer_handler = TimerHandler::Create(in, std::bind(func, instance.get(), std::forward<Args>(args)...), instance);
+		AttachInternal(timer_handler);
+		return timer_handler;
+	}
 
 	virtual ~EventLoop();
 
@@ -60,14 +76,26 @@ private:
 
 	friend Event;
 
-	class ExecuteEventHandler : public EventHandler {
+	class ExecuteHandler : public EventHandler {
 	public:
-		ExecuteEventHandler(std::function<void()> func, std::weak_ptr<void> instance);
-		virtual ~ExecuteEventHandler();
+		ExecuteHandler(std::function<void()> func, std::weak_ptr<void> instance);
+		virtual ~ExecuteHandler();
 
 	private:
 		void Handle(std::uint32_t events) override;
 		int GetFlags() const override { return 0; }
+
+		std::function<void()> func_;
+		std::weak_ptr<void> instance_;
+	};
+
+	class TimerHandler : public EventHandler, public Cancellable {
+	public:
+		TimerHandler(int fd, std::function<void()> func, std::weak_ptr<void> instance);
+		virtual ~TimerHandler();
+	private:
+		void Handle(std::uint32_t events) override;
+		int GetFlags() const override { return EPOLLIN; }
 
 		std::function<void()> func_;
 		std::weak_ptr<void> instance_;

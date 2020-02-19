@@ -73,28 +73,21 @@ private:
 		return InResult(reinterpret_cast<const std::uint8_t*>(in_str.c_str()), in_str.length());
 	}
 
-	OutResult Out(std::list<std::shared_ptr<const DataView>> &out_list) override {
+	OutResult Out(std::shared_ptr<const DataView> &data_view) override {
 		string out;
-
-		for (auto data_view : out_list) {
-			data_view->AppendToString(out);
-		}
-
-		out_list.clear();
+		data_view->AppendToString(out);
 
 		LOG_TRACE("received from next: " << out << " " << this)
 
-		out_list.push_back(DataView("*").Save());
-		out_list.push_back(DataView(out).Save());
-		out_list.push_back(DataView("*").Save());
+		out.push_back('*');
+		data_view = DataView(out).Save();
 
-		LOG_TRACE("out forwarding to prev: * " << out << " * " << this)
+		LOG_TRACE("out forwarding to prev: " << out << " " << this)
 
-		auto out_result = PrevOut(out_list);
+		auto out_result = PrevOut(data_view);
 
 		if (out_result.ShouldCloseWrite()) {
 			LOG_TRACE("out result should close write " << this);
-			return out_result;
 		}
 
 		return out_result;
@@ -111,12 +104,10 @@ private:
 	ShutdownResult Shutdown() override {
 		if (!shutdown_sent_) {
 			LOG_TRACE("sending shutdown " << this);
+			auto data_view = DataView("#").Save();
+			auto out_result = PrevOut(data_view);
 
-			std::list<std::shared_ptr<const DataView>> out_list;
-			out_list.push_back(DataView("#").Save());
-			auto out_result = PrevOut(out_list);
-
-			if (out_list.empty()) {
+			if (!data_view) {
 				LOG_TRACE("sent shutdown" << this);
 				shutdown_sent_ = true;
 			} else if (out_result.ShouldCloseWrite()) {
@@ -146,7 +137,6 @@ private:
 					shutdown_received_ = true;
 				}
 			}
-
 		}
 
 		if (shutdown_sent_ && shutdown_received_) {
@@ -197,7 +187,7 @@ public:
 		}
 	}
 
-	void HandleData(std::shared_ptr<StreamBuffer> stream_buffer, std::shared_ptr<const DataView> &data_view) override {
+	void HandleData(std::shared_ptr<StreamBuffer> stream_buffer, const std::shared_ptr<const DataView> &data_view) override {
 		lock_.lock();
 		BufferState &buffer_state = buffers_[stream_buffer];
 		lock_.unlock();
@@ -262,7 +252,7 @@ public:
 		}
 	}
 
-	void HandleData(std::shared_ptr<StreamBuffer> stream_buffer, std::shared_ptr<const DataView> &data_view) override {
+	void HandleData(std::shared_ptr<StreamBuffer> stream_buffer, const std::shared_ptr<const DataView> &data_view) override {
 		lock_.lock();
 		BufferState &buffer_state = buffers_[stream_buffer];
 		lock_.unlock();
@@ -319,7 +309,7 @@ public:
 	StreamBufferHandlerCount(int expected_count, const chrono::milliseconds &wait_time) : WaitCount(expected_count, wait_time) {}
 	virtual ~StreamBufferHandlerCount() {}
 
-	void HandleData(std::shared_ptr<StreamBuffer> stream_buffer, std::shared_ptr<const DataView> &data_view) override {}
+	void HandleData(std::shared_ptr<StreamBuffer> stream_buffer, const std::shared_ptr<const DataView> &data_view) override {}
 
 	void HandleConnected(std::shared_ptr<StreamBuffer> stream_buffer) override {
 		Dec();
@@ -335,7 +325,7 @@ public:
 	StreamBufferHandlerEOFCount(int expected_count, const chrono::milliseconds &wait_time) : WaitCount(expected_count, wait_time) {}
 	virtual ~StreamBufferHandlerEOFCount() {}
 
-	void HandleData(std::shared_ptr<StreamBuffer> stream_buffer, std::shared_ptr<const DataView> &data_view) override {}
+	void HandleData(std::shared_ptr<StreamBuffer> stream_buffer, const std::shared_ptr<const DataView> &data_view) override {}
 
 	void HandleConnected(std::shared_ptr<StreamBuffer> stream_buffer) override {
 		throw "should not be able to successfully connect";
@@ -368,7 +358,7 @@ public:
 		stream_buffer->Write(ping_msg.substr(3, 1));
 	}
 
-	void HandleData(std::shared_ptr<StreamBuffer> stream_buffer, std::shared_ptr<const DataView> &data_view) override {
+	void HandleData(std::shared_ptr<StreamBuffer> stream_buffer, const std::shared_ptr<const DataView> &data_view) override {
 		lock_.lock();
 		string &str = strings_[stream_buffer];
 		lock_.unlock();
@@ -421,7 +411,7 @@ public:
 		Dec();
 	}
 
-	void HandleData(std::shared_ptr<StreamBuffer> stream_buffer, std::shared_ptr<const DataView> &data_view) override {
+	void HandleData(std::shared_ptr<StreamBuffer> stream_buffer, const std::shared_ptr<const DataView> &data_view) override {
 		lock_.lock();
 		string &str = strings_[stream_buffer];
 		lock_.unlock();
@@ -541,8 +531,8 @@ TEST(StreamBuffer, PingPong) {
 		stream_buffer_handler->Connect("127.0.0.1", port);
 	}
 
-	stream_buffer_handler->Wait();
-	ping_server->Wait();
+	ASSERT_TRUE(stream_buffer_handler->Wait());
+	ASSERT_TRUE(ping_server->Wait());
 }
 
 TEST(StreamBuffer, ConnectFailure) {
@@ -550,7 +540,7 @@ TEST(StreamBuffer, ConnectFailure) {
 	auto stream_buffer_handler = make_shared<StreamBufferHandlerEOFCount>(1, 1000ms);
 	auto stream_buffer = StreamBuffer::CreateForClient(stream_buffer_handler, "127.0.0.1", 999);
 	event_loop->Attach(stream_buffer);
-	stream_buffer_handler->Wait();
+	ASSERT_TRUE(stream_buffer_handler->Wait());
 }
 
 TEST(StreamBuffer, DummyFilter) {
@@ -568,8 +558,8 @@ TEST(StreamBuffer, DummyFilter) {
 		client_handler->Connect("127.0.0.1", port);
 	}
 
-	client_handler->Wait();
-	server->Wait();
+	ASSERT_TRUE(client_handler->Wait());
+	ASSERT_TRUE(server->Wait());
 }
 
 int main(int argc, char **argv)

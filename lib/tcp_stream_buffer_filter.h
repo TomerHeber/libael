@@ -23,7 +23,7 @@ public:
 
 private:
 	InResult In() override;
-	OutResult Out(std::list<std::shared_ptr<const DataView>> &out_list) override;
+	OutResult Out(std::shared_ptr<const DataView> &data_view) override;
 	ConnectResult Connect() override;
 	ConnectResult Accept() override;
 	ShutdownResult Shutdown() override;

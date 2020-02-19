@@ -68,46 +68,42 @@ InResult TCPStreamBufferFilter::In() {
 	}
 }
 
-OutResult TCPStreamBufferFilter::Out(std::list<std::shared_ptr<const DataView>> &out_list) {
-	while (!out_list.empty()) {
-		auto data_view = out_list.front();
-		auto has_more = out_list.size() > 1;
+OutResult TCPStreamBufferFilter::Out(std::shared_ptr<const DataView> &data_view) {
+	auto write_ret = send(fd_, data_view->GetData(), data_view->GetDataLength(), MSG_NOSIGNAL | MSG_DONTWAIT);
 
-		auto write_ret = send(fd_, data_view->GetData(), data_view->GetDataLength(), (has_more ? MSG_MORE : 0) | MSG_NOSIGNAL | MSG_DONTWAIT);
-		if (write_ret == -1) {
-			switch (errno) {
-			case EAGAIN:
-				LOG_DEBUG("write would block " << this);
-				return OutResult();
-			case EBADF:
-			case EDESTADDRREQ:
-			case EFAULT:
-			case EINVAL:
-			case EMSGSIZE:
-			case ENOMEM:
-			case ENOTCONN:
-			case ENOTSOCK:
-			case EOPNOTSUPP:
-				throw std::system_error(errno, std::system_category(), "write failed");
-			default:
-				LOG_DEBUG("tcp stream buffer filter write no longer writable " << this << " error=" << std::strerror(errno));
-				return OutResult::CreateShouldClose();
-			}
+	if (write_ret == -1) {
+		switch (errno) {
+		case EAGAIN:
+			LOG_DEBUG("write would block " << this);
+			return OutResult();
+		case EBADF:
+		case EDESTADDRREQ:
+		case EFAULT:
+		case EINVAL:
+		case EMSGSIZE:
+		case ENOMEM:
+		case ENOTCONN:
+		case ENOTSOCK:
+		case EOPNOTSUPP:
+			throw std::system_error(errno, std::system_category(), "write failed");
+		default:
+			LOG_DEBUG("tcp stream buffer filter write no longer writable " << this << " error=" << std::strerror(errno));
+			return OutResult::CreateShouldClose();
 		}
+	}
 
-		LOG_DEBUG("write " << write_ret << " bytes " << this);
+	LOG_DEBUG("write " << write_ret << " bytes " << this);
 
-		if (write_ret == 0) {
-			throw "write return 0 (kernel bug?)";
-		}
+	if (write_ret == 0) {
+		throw "write return 0 (kernel bug?)";
+	}
 
-		out_list.pop_front();
-
-		std::shared_ptr<const DataView> suffix_data_view;
-		if (write_ret < data_view->GetDataLength()) {
-			out_list.push_front(data_view->Slice(write_ret).Save());
-			LOG_TRACE("partial write " <<  suffix_data_view->GetDataLength( )<< " bytes left id=" << this);
-		}
+	std::shared_ptr<const DataView> suffix_data_view;
+	if (write_ret < data_view->GetDataLength()) {
+		data_view = data_view->Slice(write_ret).Save();
+		LOG_TRACE("partial write " <<  suffix_data_view->GetDataLength( )<< " bytes left id=" << this);
+	} else {
+		data_view = nullptr;
 	}
 
 	return OutResult();

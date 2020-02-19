@@ -25,7 +25,7 @@ public:
 	StreamBufferHandler() {}
 	virtual ~StreamBufferHandler() {}
 
-	virtual void HandleData(std::shared_ptr<StreamBuffer> stream_buffer, std::shared_ptr<const DataView> &data_view) = 0;
+	virtual void HandleData(std::shared_ptr<StreamBuffer> stream_buffer, const std::shared_ptr<const DataView> &data_view) = 0;
 	virtual void HandleConnected(std::shared_ptr<StreamBuffer> stream_buffer) = 0;
 	virtual void HandleEOF(std::shared_ptr<StreamBuffer> stream_buffer) = 0;
 };
@@ -102,12 +102,12 @@ protected:
 	bool HasNext() const { return next_ != nullptr; }
 
 	InResult PrevIn() const { return prev_->In(); }
-	OutResult PrevOut(std::list<std::shared_ptr<const DataView>> &out_list) const { return prev_->Out(out_list); }
+	OutResult PrevOut(std::shared_ptr<const DataView> &data_view) const { return prev_->Out(data_view); }
 
-	void HandleData(std::shared_ptr<const DataView> &data_view);
+	void HandleData(const std::shared_ptr<const DataView> &data_view);
 
 	virtual InResult In() = 0;
-	virtual OutResult Out(std::list<std::shared_ptr<const DataView>> &out_list) = 0;
+	virtual OutResult Out(std::shared_ptr<const DataView> &data_view) = 0;
 	virtual ShutdownResult Shutdown() = 0;
 	virtual ConnectResult Connect() = 0;
 	virtual ConnectResult Accept() = 0;

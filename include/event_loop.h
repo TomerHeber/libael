@@ -19,13 +19,12 @@
 #include <chrono>
 
 #include "event.h"
-#include "timer_handler.h"
 
 namespace ael {
 
-class Cancellable {
+class Cancellable : public EventHandler {
 public:
-	Cancellable() {}
+	Cancellable(int fd) : EventHandler(fd) {}
 	virtual ~Cancellable() {}
 
 	virtual void Cancel() = 0;
@@ -39,14 +38,28 @@ public:
 	void Attach(std::shared_ptr<EventHandler> event_handler);
 
 	template<class Function, class Instance, class... Args>
-	void Execute(Function func, std::shared_ptr<Instance> instance, Args&&... args) {
+	void ExecuteOnce(Function func, std::shared_ptr<Instance> instance, Args&&... args) {
 		auto execute_handler = std::make_shared<ExecuteHandler>(std::bind(func, instance.get(), std::forward<Args>(args)...), instance);
 		AttachInternal(execute_handler);
 	}
 
-	template<class Function, class Instance, class... Args>
-	std::shared_ptr<Cancellable> ExecuteAfter(const std::chrono::milliseconds &in, Function func, std::shared_ptr<Instance> instance, Args&&... args) {
-		auto timer_handler = TimerHandler::Create(in, std::bind(func, instance.get(), std::forward<Args>(args)...), instance);
+	template<class Rep, class Period,class Function, class Instance, class... Args>
+	std::shared_ptr<Cancellable> ExecuteOnceIn(const std::chrono::duration<Rep, Period> &execute_in, Function func, std::shared_ptr<Instance> instance, Args&&... args) {
+		auto timer_handler = TimerHandler::Create(std::chrono::nanoseconds(0), std::chrono::nanoseconds(execute_in), std::bind(func, instance.get(), std::forward<Args>(args)...), instance);
+		AttachInternal(timer_handler);
+		return timer_handler;
+	}
+
+	template<class Rep, class Period,class Function, class Instance, class... Args>
+	std::shared_ptr<Cancellable> ExecuteInterval(const std::chrono::duration<Rep, Period> &interval, Function func, std::shared_ptr<Instance> instance, Args&&... args) {
+		auto timer_handler = TimerHandler::Create(std::chrono::nanoseconds(interval), std::chrono::nanoseconds(0), std::bind(func, instance.get(), std::forward<Args>(args)...), instance);
+		AttachInternal(timer_handler);
+		return timer_handler;
+	}
+
+	template<class Rep1, class Period1, class Rep2, class Period2, class Function, class Instance, class... Args>
+	std::shared_ptr<Cancellable> ExecuteIntervalIn(const std::chrono::duration<Rep1, Period1> &interval, const std::chrono::duration<Rep2, Period2> &execute_in, Function func, std::shared_ptr<Instance> instance, Args&&... args) {
+		auto timer_handler = TimerHandler::Create(std::chrono::nanoseconds(interval), std::chrono::nanoseconds(execute_in), std::bind(func, instance.get(), std::forward<Args>(args)...), instance);
 		AttachInternal(timer_handler);
 		return timer_handler;
 	}
@@ -89,16 +102,22 @@ private:
 		std::weak_ptr<void> instance_;
 	};
 
-	class TimerHandler : public EventHandler, public Cancellable {
+	class TimerHandler : public Cancellable {
 	public:
-		TimerHandler(int fd, std::function<void()> func, std::weak_ptr<void> instance);
+		static std::shared_ptr<Cancellable> Create(const std::chrono::nanoseconds &interval, const std::chrono::nanoseconds &execute_in, std::function<void()> func, std::weak_ptr<void> instance);
+		TimerHandler(int fd, bool run_once, std::function<void()> func, std::weak_ptr<void> instance);
+
 		virtual ~TimerHandler();
 	private:
 		void Handle(std::uint32_t events) override;
-		int GetFlags() const override { return EPOLLIN; }
+		int GetFlags() const override;
+		void Cancel() override;
 
+		int fd_;
+		bool run_once_;
 		std::function<void()> func_;
 		std::weak_ptr<void> instance_;
+		std::atomic_bool canceled_;
 	};
 };
 

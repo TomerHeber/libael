@@ -14,10 +14,10 @@ namespace ael {
 
 class TCPStreamBufferFilter: public StreamBufferFilter {
 public:
-	TCPStreamBufferFilter(std::shared_ptr<StreamBuffer> stream_buffer, int fd, bool pending_connect);
+	TCPStreamBufferFilter(std::shared_ptr<StreamBuffer> stream_buffer, Handle handle, bool pending_connect);
 	virtual ~TCPStreamBufferFilter();
 
-	static std::shared_ptr<TCPStreamBufferFilter> Create(std::shared_ptr<StreamBuffer> stream_buffer, int fd, bool connected);
+	static std::shared_ptr<TCPStreamBufferFilter> Create(std::shared_ptr<StreamBuffer> stream_buffer, Handle handle, bool connected);
 
 	friend std::ostream& operator<<(std::ostream &out, const TCPStreamBufferFilter *filter);
 
@@ -28,7 +28,7 @@ private:
 	ConnectResult Accept() override;
 	ShutdownResult Shutdown() override;
 
-	int fd_;
+	Handle handle_;
 	bool pending_connect_;
 };
 

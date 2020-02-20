@@ -157,8 +157,8 @@ public:
 	}
 	virtual ~DummyFilterServer() {}
 
-	void HandleNewConnection(int fd) override {
-		auto stream_buffer = StreamBuffer::CreateForServer(shared_from_this(), fd);
+	void HandleNewConnection(Handle handle) override {
+		auto stream_buffer = StreamBuffer::CreateForServer(shared_from_this(), handle);
 		BufferState buffer_state;
 		buffer_state.upgraded = false;
 		lock_.lock();
@@ -298,8 +298,8 @@ public:
 	NewConnectionHandlerCount(int expected_connections_count, const chrono::milliseconds &wait_time) : WaitCount(expected_connections_count, wait_time) {}
 	virtual ~NewConnectionHandlerCount() {}
 
-	void HandleNewConnection(int fd) override {
-		close(fd);
+	void HandleNewConnection(Handle handle) override {
+		handle.Close();
 		Dec();
 	}
 };
@@ -392,8 +392,8 @@ public:
 	}
 	virtual ~PingServer() {}
 
-	void HandleNewConnection(int fd) override {
-		auto stream_buffer = StreamBuffer::CreateForServer(shared_from_this(), fd);
+	void HandleNewConnection(Handle handle) override {
+		auto stream_buffer = StreamBuffer::CreateForServer(shared_from_this(), handle);
 		lock_.lock();
 		strings_[stream_buffer] = "";
 		lock_.unlock();

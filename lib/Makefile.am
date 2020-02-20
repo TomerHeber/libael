@@ -1,6 +1,6 @@
 lib_LTLIBRARIES = libael.la
 
-libael_la_SOURCES = event_loop.cc event.cc config.cc log.cc data_view.cc
+libael_la_SOURCES = event_loop.cc event.cc config.cc log.cc data_view.cc stream_listener.cc stream_buffer.cc
 
 otherincludedir = $(includedir)/ael
 otherinclude_HEADERS = 	\
@@ -10,10 +10,11 @@ otherinclude_HEADERS = 	\
 				 	$(top_srcdir)/include/config.h \
 				 	$(top_srcdir)/include/stream_listener.h \
 				 	$(top_srcdir)/include/stream_buffer.h \
-				 	$(top_srcdir)/include/data_view.h
+				 	$(top_srcdir)/include/data_view.h \
+				 	$(top_srcdir)/include/handle.h
 
 if EPOLL_BACKEND
-libael_la_SOURCES += linux/epoll.cc linux/stream_listener.cc linux/stream_buffer.cc linux/tcp_stream_buffer_filter.cc		   
+libael_la_SOURCES += linux/epoll.cc linux/stream_buffer_linux.cc linux/tcp_stream_buffer_filter.cc linux/handle.cc linux/event_loop_linux.cc linux/stream_listener_linux.cc
 endif
 
 if OPENSSL

@@ -5,12 +5,6 @@
  *      Author: tomer
  */
 
-#include <sys/epoll.h>
-
-#include <arpa/inet.h>
-
-#include <unistd.h>
-
 #include <cstring>
 
 #include "stream_buffer.h"
@@ -27,8 +21,8 @@ std::ostream& operator<<(std::ostream &out, const StreamBuffer *stream_buffer) {
 	return out;
 }
 
-StreamBuffer::StreamBuffer(std::shared_ptr<StreamBufferHandler> stream_buffer_handler, int fd, StreamBufferMode mode) :
-		EventHandler(fd),
+StreamBuffer::StreamBuffer(std::shared_ptr<StreamBufferHandler> stream_buffer_handler, Handle handle, StreamBufferMode mode) :
+		EventHandler(handle),
 		stream_buffer_handler_(stream_buffer_handler),
 		add_filter_allowed_(true),
 		eof_called_(false),
@@ -38,79 +32,19 @@ StreamBuffer::StreamBuffer(std::shared_ptr<StreamBufferHandler> stream_buffer_ha
 }
 
 
-std::shared_ptr<StreamBuffer> StreamBuffer::Create(std::shared_ptr<StreamBufferHandler> stream_buffer_handler, int fd, StreamBufferMode mode) {
-	std::shared_ptr<StreamBuffer> stream_buffer(new StreamBuffer(stream_buffer_handler, fd, mode));
-	auto tcp_stream_buffer_filter = TCPStreamBufferFilter::Create(stream_buffer, fd, true);
+std::shared_ptr<StreamBuffer> StreamBuffer::Create(std::shared_ptr<StreamBufferHandler> stream_buffer_handler, Handle handle, StreamBufferMode mode) {
+	std::shared_ptr<StreamBuffer> stream_buffer(new StreamBuffer(stream_buffer_handler, handle, mode));
+	auto tcp_stream_buffer_filter = TCPStreamBufferFilter::Create(stream_buffer, handle, true);
 	stream_buffer->AddStreamBufferFilter(tcp_stream_buffer_filter);
 	return stream_buffer;
 }
 
-std::shared_ptr<StreamBuffer> StreamBuffer::CreateForServer(std::shared_ptr<StreamBufferHandler> stream_buffer_handler, int fd) {
-	return Create(stream_buffer_handler, fd, SERVER_MODE);
+std::shared_ptr<StreamBuffer> StreamBuffer::CreateForServer(std::shared_ptr<StreamBufferHandler> stream_buffer_handler, Handle handle) {
+	return Create(stream_buffer_handler, handle, SERVER_MODE);
 }
 
-std::shared_ptr<StreamBuffer> StreamBuffer::CreateForClient(std::shared_ptr<StreamBufferHandler> stream_buffer_handler, int fd) {
-	return Create(stream_buffer_handler, fd, CLIENT_MODE);
-}
-
-std::shared_ptr<StreamBuffer> StreamBuffer::CreateForClient(std::shared_ptr<StreamBufferHandler> stream_buffer_handler, const std::string &ip_addr, in_port_t port) {
-	sockaddr *addr = nullptr;
-	socklen_t addr_len;
-	sa_family_t domain;
-
-	sockaddr_in in4 = {};
-	sockaddr_in6 in6 = {};
-
-	auto is_connected = false;
-
-	if (inet_pton(AF_INET, ip_addr.c_str(), &in4.sin_addr) == 1) {
-		in4.sin_family = AF_INET;
-		in4.sin_port = htons(port);
-		addr = reinterpret_cast<sockaddr*>(&in4);
-		addr_len = sizeof(in4);
-		domain = AF_INET;
-	} else if (inet_pton(AF_INET6, ip_addr.c_str(), &in6.sin6_addr) == 1) {
-		in6.sin6_family = AF_INET6;
-		in6.sin6_port = htons(port);
-		addr = reinterpret_cast<sockaddr*>(&in6);
-		addr_len = sizeof(in6);
-		domain = AF_INET6;
-	} else {
-		throw "invalid host - inet_pton failed for both IPv4 and IPv6";
-	}
-
-	auto fd = socket(domain, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
-	if (fd < 0) {
-		throw std::system_error(errno, std::system_category(), "socket failed");
-	}
-
-	LOG_TRACE("creating stream buffer - connecting fd=" << fd << " ip_addr=" << ip_addr << " port=" << port);
-
-	auto connect_ret = connect(fd, addr, addr_len);
-	if (connect_ret == 0) {
-		LOG_TRACE("creating stream buffer - connected fd=" << fd << " ip_addr=" << ip_addr << " port=" << port);
-		is_connected = true;
-	} else {
-		switch(errno) {
-		case EINPROGRESS:
-			LOG_TRACE("creating stream buffer - connecting in progress fd=" << fd << " ip_addr=" << ip_addr << " port=" << port);
-			break;
-		case EAFNOSUPPORT:
-		case EALREADY:
-		case EBADF:
-		case EFAULT:
-		case EISCONN:
-		case ENOTSOCK:
-			throw std::system_error(errno, std::system_category(), "connect failed");
-		default:
-			LOG_WARN("creating stream buffer - failed to connect fd=" << fd << " ip_addr=" << ip_addr << " port=" << port << " error=" << std::strerror(errno));
-		}
-	}
-
-	std::shared_ptr<StreamBuffer> stream_buffer(new StreamBuffer(stream_buffer_handler, fd, CLIENT_MODE));
-	auto tcp_stream_buffer_filter = TCPStreamBufferFilter::Create(stream_buffer, fd, is_connected);
-	stream_buffer->AddStreamBufferFilter(tcp_stream_buffer_filter);
-	return stream_buffer;
+std::shared_ptr<StreamBuffer> StreamBuffer::CreateForClient(std::shared_ptr<StreamBufferHandler> stream_buffer_handler, Handle handle) {
+	return Create(stream_buffer_handler, handle, CLIENT_MODE);
 }
 
 void StreamBuffer::AddStreamBufferFilter(std::shared_ptr<StreamBufferFilter> stream_filter) {
@@ -135,7 +69,9 @@ void StreamBuffer::AddStreamBufferFilter(std::shared_ptr<StreamBufferFilter> str
 	stream_filters_.push_back(stream_filter);
 }
 
-void StreamBuffer::Handle(std::uint32_t events) {
+void StreamBuffer::HandleEvents(Handle handle, std::uint32_t events) {
+	std::ignore = handle;
+
 	LOG_TRACE("handling events " << this << " events=" << events);
 
 	auto stream_buffer_handler = stream_buffer_handler_.lock();

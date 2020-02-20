@@ -21,26 +21,26 @@ namespace ael {
 
 std::ostream& operator<<(std::ostream &out, const TCPStreamBufferFilter *filter) {
 	const StreamBufferFilter *stream_buffer_filter = filter;
-	out << stream_buffer_filter << " fd=" << filter->fd_;
+	out << stream_buffer_filter << " handle=" << filter->handle_;
 	return out;
 }
 
-TCPStreamBufferFilter::TCPStreamBufferFilter(std::shared_ptr<StreamBuffer> stream_buffer, int fd, bool pending_connect) :
+TCPStreamBufferFilter::TCPStreamBufferFilter(std::shared_ptr<StreamBuffer> stream_buffer, Handle handle, bool pending_connect) :
 		StreamBufferFilter(stream_buffer),
-		fd_(fd),
+		handle_(handle),
 		pending_connect_(pending_connect) {}
 
 TCPStreamBufferFilter::~TCPStreamBufferFilter() {}
 
-std::shared_ptr<TCPStreamBufferFilter> TCPStreamBufferFilter::Create(std::shared_ptr<StreamBuffer> stream_buffer, int fd, bool connected) {
-	LOG_TRACE("creating a tcp stream buffer filter fd=" << fd);
-	return std::shared_ptr<TCPStreamBufferFilter>(new TCPStreamBufferFilter(stream_buffer, fd, connected));
+std::shared_ptr<TCPStreamBufferFilter> TCPStreamBufferFilter::Create(std::shared_ptr<StreamBuffer> stream_buffer, Handle handle, bool connected) {
+	LOG_TRACE("creating a tcp stream buffer filter handle=" << handle);
+	return std::shared_ptr<TCPStreamBufferFilter>(new TCPStreamBufferFilter(stream_buffer, handle, connected));
 }
 
 InResult TCPStreamBufferFilter::In() {
 	std::uint8_t buf[100000];
 
-	auto read_ret_ = recv(fd_, buf, sizeof(buf), MSG_DONTWAIT);
+	auto read_ret_ = recv(handle_, buf, sizeof(buf), MSG_DONTWAIT);
 
 	switch (read_ret_) {
 	case 0:
@@ -69,7 +69,7 @@ InResult TCPStreamBufferFilter::In() {
 }
 
 OutResult TCPStreamBufferFilter::Out(std::shared_ptr<const DataView> &data_view) {
-	auto write_ret = send(fd_, data_view->GetData(), data_view->GetDataLength(), MSG_NOSIGNAL | MSG_DONTWAIT);
+	auto write_ret = send(handle_, data_view->GetData(), data_view->GetDataLength(), MSG_NOSIGNAL | MSG_DONTWAIT);
 
 	if (write_ret == -1) {
 		switch (errno) {
@@ -129,7 +129,7 @@ ConnectResult TCPStreamBufferFilter::Connect() {
 	int socket_error;
 	socklen_t socket_error_len = sizeof(socket_error);
 
-	if (getsockopt(fd_, SOL_SOCKET, SO_ERROR, &socket_error, &socket_error_len) < 0) {
+	if (getsockopt(handle_, SOL_SOCKET, SO_ERROR, &socket_error, &socket_error_len) < 0) {
 		throw std::system_error(errno, std::system_category(), "getsockopt failed");
 	}
 

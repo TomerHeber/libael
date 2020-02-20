@@ -43,8 +43,8 @@ public:
 		SSL_CTX_free(ssl_ctx_);
 	}
 
-	void HandleNewConnection(int fd) override {
-		auto stream_buffer = StreamBuffer::CreateForServer(shared_from_this(), fd);
+	void HandleNewConnection(Handle handle) override {
+		auto stream_buffer = StreamBuffer::CreateForServer(shared_from_this(), handle);
 		BufferState buffer_state;
 		buffer_state.order = order_;
 		lock_.lock();
@@ -188,11 +188,11 @@ TEST(OpenSSLFilter, Basic) {
 
 	auto event_loop = EventLoop::Create();
 
-	auto server = make_shared<BasicSSLServer>(count * 2, 2000ms, 1);
+	auto server = make_shared<BasicSSLServer>(count * 2, 20000ms, 1);
 	auto server_listener = StreamListener::Create(server, "127.0.0.1", port);
 	event_loop->Attach(server_listener);
 
-	auto client_handler = make_shared<BasicSSLClient>(count * 2, 2000ms, 1);
+	auto client_handler = make_shared<BasicSSLClient>(count * 2, 20000ms, 1);
 	for (auto i = 0; i < count; i++) {
 		client_handler->Connect("127.0.0.1", port);
 	}
@@ -207,11 +207,11 @@ TEST(OpenSSLFilter, BasicLudicrous) {
 
 	auto event_loop = EventLoop::Create();
 
-	auto server = make_shared<BasicSSLServer>(count * 2, 5000ms, 25);
+	auto server = make_shared<BasicSSLServer>(count * 2, 60s, 25);
 	auto server_listener = StreamListener::Create(server, "127.0.0.1", port);
 	event_loop->Attach(server_listener);
 
-	auto client_handler = make_shared<BasicSSLClient>(count * 2, 5000ms, 25);
+	auto client_handler = make_shared<BasicSSLClient>(count * 2, 60s, 25);
 	for (auto i = 0; i < count; i++) {
 		client_handler->Connect("127.0.0.1", port);
 	}

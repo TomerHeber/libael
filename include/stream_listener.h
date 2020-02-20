@@ -10,13 +10,6 @@
 
 #include "event.h"
 
-#include <unistd.h>
-
-#include <sys/types.h>
-#include <sys/socket.h>
-
-#include <netinet/in.h>
-
 #include <memory>
 
 namespace ael {
@@ -26,7 +19,7 @@ public:
 	NewConnectionHandler() {}
 	virtual ~NewConnectionHandler() {}
 
-	virtual void HandleNewConnection(int fd) = 0;
+	virtual void HandleNewConnection(Handle handle) = 0;
 };
 
 class StreamListener: public EventHandler {
@@ -35,16 +28,15 @@ public:
 
 	friend std::ostream& operator<<(std::ostream &out, const StreamListener *stream_listener);
 
-	static std::shared_ptr<StreamListener> Create(std::shared_ptr<NewConnectionHandler> new_connection_handler, const std::string &ip_addr, in_port_t port);
+	static std::shared_ptr<StreamListener> Create(std::shared_ptr<NewConnectionHandler> new_connection_handler, const std::string &ip_addr, std::uint16_t port);
 
 private:
-	StreamListener(std::shared_ptr<NewConnectionHandler> new_connection_handler, int fd);
+	StreamListener(std::shared_ptr<NewConnectionHandler> new_connection_handler, Handle handle);
 
-	void Handle(std::uint32_t events) override;
+	void HandleEvents(Handle handle, std::uint32_t events) override;
 	int GetFlags() const override;
 
 	std::weak_ptr<NewConnectionHandler> new_connection_handler_;
-	int fd_;
 };
 
 }

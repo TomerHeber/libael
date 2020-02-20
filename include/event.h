@@ -12,6 +12,8 @@
 #include <mutex>
 #include <cstdint>
 
+#include "handle.h"
+
 namespace ael {
 
 class EventLoop;
@@ -19,10 +21,11 @@ class Event;
 
 class EventHandler {
 public:
-	EventHandler(int fd = -1);
+	EventHandler();
+	EventHandler(Handle handle);
 	virtual ~EventHandler();
 
-	virtual void Handle(std::uint32_t events) = 0;
+	virtual void HandleEvents(Handle handle, std::uint32_t events) = 0;
 	virtual int GetFlags() const = 0;
 
 	std::uint64_t GetId() const { return id_; }
@@ -37,7 +40,7 @@ protected:
 private:
 	std::shared_ptr<Event> event_;
 	const std::uint64_t id_;
-	int fd_;
+	Handle handle_;
 
 	friend EventLoop;
 	friend Event;
@@ -50,7 +53,7 @@ public:
 	friend std::ostream& operator<<(std::ostream &out, const Event *event);
 
 	std::uint64_t GetID() const { return id_; }
-	int GetFD() const { return fd_; }
+	Handle GetHandle() const { return handle_; }
 	int GetFlags() const;
 	std::weak_ptr<EventHandler> GetEventHandler() const { return event_handler_; }
 	std::weak_ptr<EventLoop> GetEventLoop() const { return event_loop_; }
@@ -65,7 +68,7 @@ private:
 	const std::uint64_t id_;
 	std::weak_ptr<EventLoop> event_loop_;
 	std::weak_ptr<EventHandler> event_handler_;
-	int fd_;
+	Handle handle_;
 	std::once_flag close_flag_;
 
 	friend EventLoop;

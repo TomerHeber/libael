@@ -7,11 +7,6 @@
 
 #include <unordered_set>
 
-#include <sys/timerfd.h>
-#include <sys/epoll.h>
-
-#include <unistd.h>
-
 #include "log.h"
 #include "async_io.h"
 #include "event_loop.h"
@@ -130,13 +125,13 @@ void EventLoop::Modify(std::shared_ptr<Event> event) {
 std::shared_ptr<Event> EventLoop::CreateEvent(std::shared_ptr<EventHandler> event_handler) {
 	std::shared_ptr<Event> event(new Event(shared_from_this(), event_handler));
 
-	LOG_TRACE("creating and adding an event id=" << event->GetID() << " fd=" << event->GetFD());
+	LOG_TRACE("creating and adding an event id=" << event->GetID() << " handle=" << event->GetHandle());
 
 	lock_.lock();
 	events_[event->GetID()] = event;
 	lock_.unlock();
 
-	LOG_TRACE("creating and adding an event - event added id=" << event->GetID() << " fd=" << event->GetFD());
+	LOG_TRACE("creating and adding an event - event added id=" << event->GetID() << " handle=" << event->GetHandle());
 
 	return event;
 }
@@ -148,11 +143,11 @@ void EventLoop::Attach(std::shared_ptr<EventHandler> event_handler) {
 
 	event_handler->event_= CreateEvent(event_handler);
 
-	LOG_DEBUG("event handler attaching to event loop event_id=" << event_handler->event_->GetID() << " event_fd=" << event_handler->event_->GetFD());
+	LOG_DEBUG("event handler attaching to event loop event_id=" << event_handler->event_->GetID() << " event_handle=" << event_handler->event_->GetHandle());
 
 	async_io_->Add(event_handler->event_);
 
-	LOG_TRACE("event handler attaching to event loop - event handler attached event_id=" << event_handler->event_->GetID() << " event_fd=" << event_handler->event_->GetFD());
+	LOG_TRACE("event handler attaching to event loop - event handler attached event_id=" << event_handler->event_->GetID() << " event_handle=" << event_handler->event_->GetHandle());
 }
 
 void EventLoop::AttachInternal(std::shared_ptr<EventHandler> event_handler) {
@@ -179,7 +174,8 @@ EventLoop::ExecuteHandler::~ExecuteHandler() {
 	LOG_TRACE("execute handler is destroyed");
 }
 
-void EventLoop::ExecuteHandler::Handle(std::uint32_t events) {
+void EventLoop::ExecuteHandler::HandleEvents(Handle handle, std::uint32_t events) {
+	std::ignore = handle;
 	std::ignore = events;
 
 	auto instance = instance_.lock();
@@ -197,8 +193,8 @@ void EventLoop::ExecuteHandler::Handle(std::uint32_t events) {
 	}
 }
 
-EventLoop::TimerHandler::TimerHandler(int fd, bool run_once, std::function<void()> func, std::weak_ptr<void> instance) :
-		Cancellable(fd), fd_(fd), run_once_(run_once), func_(func), instance_(instance), canceled_(false) {
+EventLoop::TimerHandler::TimerHandler(Handle handle, bool run_once, std::function<void()> func, std::weak_ptr<void> instance) :
+		Cancellable(handle), run_once_(run_once), func_(func), instance_(instance), canceled_(false) {
 	LOG_TRACE("timer handler is created");
 }
 
@@ -206,95 +202,9 @@ EventLoop::TimerHandler::~TimerHandler() {
 	LOG_TRACE("timer handler is destroyed");
 }
 
-static timespec ToTimeSpec(const std::chrono::nanoseconds &tm) {
-	auto seconds = std::chrono::duration_cast<std::chrono::seconds>(tm);
-	std::chrono::nanoseconds nanoseconds = tm - seconds;
-
-	timespec ts;
-	ts.tv_sec = seconds.count();
-	ts.tv_nsec = nanoseconds.count();
-
-	return ts;
-}
-
 std::shared_ptr<Cancellable> EventLoop::TimerHandler::Create(const std::chrono::nanoseconds &interval, const std::chrono::nanoseconds &execute_in, std::function<void()> func, std::weak_ptr<void> instance) {
-	auto fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
-	if (fd < 0) {
-		throw std::system_error(errno, std::system_category(), "timerfd_create - failed");
-	}
-
-	auto run_once = false;
-	if (interval.count() == 0) {
-		run_once = true;
-
-		if (execute_in.count() == 0) {
-			throw "invalid interval values (both zero nanoseconds)";
-		}
-	}
-
-	LOG_TRACE("timer handler time should execute in " << execute_in.count() << " nanoseconds and interval set to " << interval.count() << " nanoseconds");
-
-	itimerspec its;
-	its.it_interval = ToTimeSpec(interval);
-	its.it_value = ToTimeSpec(execute_in);
-
-	if (its.it_value.tv_nsec == 0 && its.it_value.tv_sec == 0) {
-		// Start as soon as possible.
-		its.it_value.tv_nsec = 1;
-	}
-
-	if (timerfd_settime(fd, 0, &its, NULL) != 0) {
-		close(fd);
-		throw std::system_error(errno, std::system_category(), "timerfd_settime - failed");
-	}
-
-	return std::make_shared<TimerHandler>(fd, run_once, func, instance);
-}
-
-void EventLoop::TimerHandler::Handle(std::uint32_t events) {
-	if (canceled_) {
-		LOG_TRACE("cannot handle timer canceled " << this);
-		return;
-	}
-
-	if (!(events & EPOLLIN)) {
-		LOG_WARN("received an unexpected events " << this << " events=" << events);
-		return;
-	}
-
-	std::uint64_t occurrences;
-
-	auto ret = read(fd_, &occurrences, sizeof(occurrences));
-
-	if (ret != sizeof(occurrences)) {
-		switch (errno) {
-		case EAGAIN:
-			LOG_TRACE("timer has not expired " << this);
-			return;
-		default:
-			throw std::system_error(errno, std::system_category(), "timerfd read - failed");
-		}
-	}
-
-	auto instance = instance_.lock();
-	if (!instance) {
-		LOG_WARN("timer cannot be executed instance has been destroyed - stopping timer " << this)
-		CloseEvent();
-		return;
-	}
-
-	if (occurrences > GLOBAL_CONFIG.interval_occurrences_limit_) {
-		LOG_WARN("too many stacked interval occurrences - reducing to " << GLOBAL_CONFIG.interval_occurrences_limit_ << " " << this)
-		occurrences = GLOBAL_CONFIG.interval_occurrences_limit_;
-	}
-
-	for (std::uint32_t i = 0; i < occurrences; i++) {
-		func_();
-	}
-
-	if (run_once_) {
-		Cancel();
-	}
+	auto handle = Handle::CreateTimerHandle(interval, execute_in);
+	return std::make_shared<TimerHandler>(handle, interval.count() == 0, func, instance);
 }
 
 int EventLoop::TimerHandler::GetFlags() const {

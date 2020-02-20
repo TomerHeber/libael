@@ -11,8 +11,6 @@
 #include <list>
 #include <atomic>
 
-#include <netinet/in.h>
-
 #include "event.h"
 #include "data_view.h"
 
@@ -133,9 +131,9 @@ private:
 
 class StreamBuffer: public EventHandler, public std::enable_shared_from_this<StreamBuffer> {
 public:
-	static std::shared_ptr<StreamBuffer> CreateForClient(std::shared_ptr<StreamBufferHandler> stream_buffer_handler, int fd);
-	static std::shared_ptr<StreamBuffer> CreateForClient(std::shared_ptr<StreamBufferHandler> stream_buffer_handler, const std::string &ip_addr, in_port_t port);
-	static std::shared_ptr<StreamBuffer> CreateForServer(std::shared_ptr<StreamBufferHandler> stream_buffer_handler, int fd);
+	static std::shared_ptr<StreamBuffer> CreateForClient(std::shared_ptr<StreamBufferHandler> stream_buffer_handler, Handle handle);
+	static std::shared_ptr<StreamBuffer> CreateForClient(std::shared_ptr<StreamBufferHandler> stream_buffer_handler, const std::string &ip_addr, std::uint16_t port);
+	static std::shared_ptr<StreamBuffer> CreateForServer(std::shared_ptr<StreamBufferHandler> stream_buffer_handler, Handle handle);
 
 	friend std::ostream& operator<<(std::ostream &out, const StreamBuffer *stream_buffer);
 
@@ -146,11 +144,11 @@ public:
 private:
 	enum StreamBufferMode { SERVER_MODE, CLIENT_MODE };
 
-	static std::shared_ptr<StreamBuffer> Create(std::shared_ptr<StreamBufferHandler> stream_buffer_handler, int fd, StreamBufferMode mode);
+	static std::shared_ptr<StreamBuffer> Create(std::shared_ptr<StreamBufferHandler> stream_buffer_handler, Handle handle, StreamBufferMode mode);
 
-	StreamBuffer(std::shared_ptr<StreamBufferHandler> stream_buffer_handler, int fd, StreamBufferMode mode);
+	StreamBuffer(std::shared_ptr<StreamBufferHandler> stream_buffer_handler, Handle handle, StreamBufferMode mode);
 
-	void Handle(std::uint32_t events) override;
+	void HandleEvents(Handle handle, std::uint32_t events) override;
 	int GetFlags() const override;
 
 	void DoRead();

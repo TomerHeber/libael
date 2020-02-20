@@ -24,7 +24,7 @@ namespace ael {
 
 class Cancellable : public EventHandler {
 public:
-	Cancellable(int fd) : EventHandler(fd) {}
+	Cancellable(Handle handle) : EventHandler(handle) {}
 	virtual ~Cancellable() {}
 
 	virtual void Cancel() = 0;
@@ -95,7 +95,7 @@ private:
 		virtual ~ExecuteHandler();
 
 	private:
-		void Handle(std::uint32_t events) override;
+		void HandleEvents(Handle handle, std::uint32_t events) override;
 		int GetFlags() const override { return 0; }
 
 		std::function<void()> func_;
@@ -105,15 +105,14 @@ private:
 	class TimerHandler : public Cancellable {
 	public:
 		static std::shared_ptr<Cancellable> Create(const std::chrono::nanoseconds &interval, const std::chrono::nanoseconds &execute_in, std::function<void()> func, std::weak_ptr<void> instance);
-		TimerHandler(int fd, bool run_once, std::function<void()> func, std::weak_ptr<void> instance);
+		TimerHandler(Handle handle, bool run_once, std::function<void()> func, std::weak_ptr<void> instance);
 
 		virtual ~TimerHandler();
 	private:
-		void Handle(std::uint32_t events) override;
+		void HandleEvents(Handle handle, std::uint32_t events) override;
 		int GetFlags() const override;
 		void Cancel() override;
 
-		int fd_;
 		bool run_once_;
 		std::function<void()> func_;
 		std::weak_ptr<void> instance_;

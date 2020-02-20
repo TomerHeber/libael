@@ -138,7 +138,7 @@ void EPoll::Process() {
 		auto event_handler = event->GetEventHandler().lock();
 		if (event_handler) {
 			LOG_TRACE("epoll events for event epoll_fd_=" << epoll_fd_ << " event_e.events=" << event_e.events << " event_fd=" << event_fd);
-			event_handler->Handle(event_e.events);
+			event_handler->HandleEvents(event_fd, event_e.events);
 		} else {
 			LOG_TRACE("epoll events for event - event handler destroyed epoll_fd_=" << epoll_fd_ << " event_e.events=" << event_e.events << " event_fd=" << event_fd);
 		}
@@ -150,16 +150,16 @@ void EPoll::Add(std::shared_ptr<Event> event) {
 }
 
 void EPoll::Modify(std::shared_ptr<Event> event) {
-	auto fd = event->GetFD();
+	auto handle = event->GetHandle();
 	auto flags = event->GetFlags();
 
-	LOG_TRACE("epoll modifying event mode epoll_fd_=" << epoll_fd_ << " fd=" << fd << " flags=" << flags << " id=" << event->GetID());
+	LOG_TRACE("epoll modifying event mode epoll_fd_=" << epoll_fd_ << " handle=" << handle << " flags=" << flags << " id=" << event->GetID());
 
 	epoll_event e_event = {};
-	e_event.data.fd = fd;
+	e_event.data.fd = handle;
 	e_event.events = GetEPollEvents(flags) | EPOLLET;
 
-	if (epoll_ctl(epoll_fd_, EPOLL_CTL_MOD, fd, &e_event) != 0) {
+	if (epoll_ctl(epoll_fd_, EPOLL_CTL_MOD, handle, &e_event) != 0) {
 		throw std::system_error(errno, std::system_category(), "epoll_ctl - EPOLL_CTL_MOD - failed");
 	}
 }
@@ -187,16 +187,16 @@ void EPoll::Wakeup() {
 
 void EPoll::AddFinalize(std::shared_ptr<Event> event) {
 	auto flags = event->GetFlags();
-	auto fd = event->GetFD();
+	auto handle = event->GetHandle();
 
-	LOG_TRACE("epoll adding event finalize epoll_fd_=" << epoll_fd_ << " fd=" << fd << " flags=" << flags << " id=" << event->GetID());
+	LOG_TRACE("epoll adding event finalize epoll_fd_=" << epoll_fd_ << " handle=" << handle << " flags=" << flags << " id=" << event->GetID());
 
-	if (fd == -1) {
+	if (!handle) {
 		// No descriptor. Just call handle and exit.
 		auto event_handler = event->GetEventHandler().lock();
 		if (event_handler) {
 			LOG_TRACE("handling an event with no fd epoll_fd_=" << epoll_fd_ << " id=" << event->GetID());
-			event_handler->Handle(0);
+			event_handler->HandleEvents(handle, 0);
 		}
 		return;
 	}
@@ -205,55 +205,55 @@ void EPoll::AddFinalize(std::shared_ptr<Event> event) {
 
 
 	e_event.events = EPOLLET | GetEPollEvents(flags);
-	e_event.data.fd = fd;
+	e_event.data.fd = handle;
 
-	events_[fd] = event;
+	events_[handle] = event;
 
-	if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, fd, &e_event) != 0) {
+	if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, handle, &e_event) != 0) {
 		throw std::system_error(errno, std::system_category(), "epoll_ctl - EPOLL_CTL_ADD - failed");
 	}
 
-	LOG_TRACE("epoll adding event finalize - complete epoll_fd_=" << epoll_fd_ << " fd=" << fd << " id=" << event->GetID());
+	LOG_TRACE("epoll adding event finalize - complete epoll_fd_=" << epoll_fd_ << " handle=" << handle << " id=" << event->GetID());
 }
 
 void EPoll::RemoveFinalize(std::shared_ptr<Event> event) {
-	auto fd = event->GetFD();
+	auto handle = event->GetHandle();
 
-	LOG_TRACE("epoll removing event finalize epoll_fd_=" << epoll_fd_ << " fd=" << fd << " id=" << event->GetID());
+	LOG_TRACE("epoll removing event finalize epoll_fd_=" << epoll_fd_ << " handle=" << handle << " id=" << event->GetID());
 
-	if (fd == -1) {
+	if (!handle) {
 		// No descriptor. Just exit.
 		return;
 	}
 
-	if (events_.erase(fd) != 1) {
+	if (events_.erase(handle) != 1) {
 		throw "event not found";
 	}
 
-	if (epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, NULL) != 0) {
+	if (epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, handle, nullptr) != 0) {
 		throw std::system_error(errno, std::system_category(), "epoll_ctl - EPOLL_CTL_DEL - failed");
 	}
 
-	LOG_TRACE("epoll removing event finalize - complete epoll_fd_=" << epoll_fd_ << " fd=" << fd << " id=" <<  event->GetID());
+	LOG_TRACE("epoll removing event finalize - complete epoll_fd_=" << epoll_fd_ << " handle=" << handle << " id=" <<  event->GetID());
 }
 
 void EPoll::ReadyFinalize(ReadyEvent ready_event) {
-	auto fd = ready_event.event->GetFD();
+	auto handle = ready_event.event->GetHandle();
 	auto id = ready_event.event->GetID();
 
-	LOG_TRACE("epoll ready event finalize epoll_fd_=" << epoll_fd_ << " fd=" << fd << " id=" << id << " flags=" << ready_event.flags);
+	LOG_TRACE("epoll ready event finalize epoll_fd_=" << epoll_fd_ << " handle=" << handle << " id=" << id << " flags=" << ready_event.flags);
 
-	auto event_iterator = events_.find(fd);
+	auto event_iterator = events_.find(handle);
 	if (event_iterator == events_.end() || event_iterator->second->GetID() != id) {
-		LOG_TRACE("epoll ready event finalize - event no longer registered (ignore) epoll_fd_=" << epoll_fd_ << " fd=" << fd << " id=" << id << " flags=" << ready_event.flags);
+		LOG_TRACE("epoll ready event finalize - event no longer registered (ignore) epoll_fd_=" << epoll_fd_ << " handle=" << handle << " id=" << id << " flags=" << ready_event.flags);
 		return;
 	}
 
 	auto event_handler = ready_event.event->GetEventHandler().lock();
 	if (event_handler) {
-		event_handler->Handle(ready_event.flags);
+		event_handler->HandleEvents(handle, ready_event.flags);
 	} else {
-		LOG_TRACE("epoll ready event finalize - event_handler destroyed epoll_fd_=" << epoll_fd_ << " fd=" << fd << " id=" << id << " flags=" << ready_event.flags);
+		LOG_TRACE("epoll ready event finalize - event_handler destroyed epoll_fd_=" << epoll_fd_ << " handle=" << handle << " id=" << id << " flags=" << ready_event.flags);
 	}
 }
 

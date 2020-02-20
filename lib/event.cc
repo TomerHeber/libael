@@ -9,8 +9,6 @@
 #include "event.h"
 #include "log.h"
 
-#include <unistd.h>
-
 #include <atomic>
 
 namespace ael {
@@ -21,20 +19,20 @@ Event::Event(std::shared_ptr<EventLoop> event_loop, std::shared_ptr<EventHandler
 		id_(event_handler->id_),
 		event_loop_(event_loop),
 		event_handler_(event_handler),
-		fd_(event_handler->fd_) {
+		handle_(event_handler->handle_) {
 	LOG_TRACE("event is created " << this);
 }
 
 Event::~Event() {
 	LOG_TRACE("event is destroyed " << this);
 
-	if (fd_ >= 0) {
-		close(fd_);
+	if (handle_) {
+		handle_.Close();
 	}
 }
 
 std::ostream& operator<<(std::ostream &out, const Event *event) {
-	out << "id=" << event->id_ << " fd=" << event->fd_;
+	out << "id=" << event->id_ << " handle=" << event->handle_;
 	return out;
 }
 
@@ -75,12 +73,16 @@ void Event::Modify() {
 }
 
 std::ostream& operator<<(std::ostream &out, const EventHandler *event_handler) {
-	out << "id=" << event_handler->id_ << " fd=" << event_handler->fd_;
+	out << "id=" << event_handler->id_ << " handle=" << event_handler->handle_;
 	return out;
 }
 
 
-EventHandler::EventHandler(int fd) : id_(id_counter.fetch_add(1)), fd_(fd) {
+EventHandler::EventHandler()  : id_(id_counter.fetch_add(1)) {
+	LOG_TRACE("event handler is created " << this);
+}
+
+EventHandler::EventHandler(Handle handle) : id_(id_counter.fetch_add(1)), handle_(handle) {
 	LOG_TRACE("event handler is created " << this);
 }
 
@@ -89,9 +91,9 @@ EventHandler::~EventHandler() {
 	if (event_) {
 		LOG_TRACE("event handler is destroyed - calling event close " << this);
 		event_->Close();
-	} else if (fd_ >= 0) {
+	} else if (handle_) {
 		LOG_TRACE("event handler is destroyed - event never attached closing descriptor " << this);
-		close(fd_);
+		handle_.Close();
 	}
 }
 

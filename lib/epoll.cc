@@ -5,15 +5,23 @@
  *      Author: tomer
  */
 
+#include "config.h"
 #include "epoll.h"
 #include "log.h"
 
+#ifdef HAVE_SYS_EPOLL_H
 #include <sys/epoll.h>
+#endif
+
+#ifdef HAVE_SYS_EVENTFD_H
 #include <sys/eventfd.h>
+#endif
 
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
-#include <errno.h>
+#endif
 
+#include <cerrno>
 #include <system_error>
 
 #define MAX_EVENTS 32
@@ -21,7 +29,9 @@
 namespace ael {
 
 std::unique_ptr<AsyncIO> AsyncIO::Create() {
+#ifdef HAVE_SYS_EPOLL_H
 	return std::make_unique<EPoll>();
+#endif
 }
 
 EPoll::EPoll() {

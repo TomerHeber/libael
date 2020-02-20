@@ -5,17 +5,25 @@
  *      Author: tomer
  */
 
-#include <sys/types.h>
-#include <sys/socket.h>
-
-#include <unistd.h>
-
-#include <cerrno>
-#include <cstring>
-
 #include "tcp_stream_buffer_filter.h"
 #include "log.h"
 #include "async_io.h"
+#include "config.h"
+
+#ifdef HAVE_SYS_SOCKET_H
+#include <sys/socket.h>
+#endif
+
+#ifdef HAVE_SYS_TYPES_H
+#include <sys/types.h>
+#endif
+
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>
+#endif
+
+#include <cerrno>
+#include <cstring>
 
 namespace ael {
 

@@ -309,13 +309,13 @@ public:
 	StreamBufferHandlerCount(int expected_count, const chrono::milliseconds &wait_time) : WaitCount(expected_count, wait_time) {}
 	virtual ~StreamBufferHandlerCount() {}
 
-	void HandleData(std::shared_ptr<StreamBuffer> stream_buffer, const std::shared_ptr<const DataView> &data_view) override {}
+	void HandleData(std::shared_ptr<StreamBuffer>, const std::shared_ptr<const DataView>&) override {}
 
-	void HandleConnected(std::shared_ptr<StreamBuffer> stream_buffer) override {
+	void HandleConnected(std::shared_ptr<StreamBuffer>) override {
 		Dec();
 	}
 
-	void HandleEOF(std::shared_ptr<StreamBuffer> stream_buffer) override {
+	void HandleEOF(std::shared_ptr<StreamBuffer>) override {
 		Dec();
 	}
 };
@@ -325,13 +325,13 @@ public:
 	StreamBufferHandlerEOFCount(int expected_count, const chrono::milliseconds &wait_time) : WaitCount(expected_count, wait_time) {}
 	virtual ~StreamBufferHandlerEOFCount() {}
 
-	void HandleData(std::shared_ptr<StreamBuffer> stream_buffer, const std::shared_ptr<const DataView> &data_view) override {}
+	void HandleData(std::shared_ptr<StreamBuffer>, const std::shared_ptr<const DataView>&) override {}
 
-	void HandleConnected(std::shared_ptr<StreamBuffer> stream_buffer) override {
+	void HandleConnected(std::shared_ptr<StreamBuffer>) override {
 		throw "should not be able to successfully connect";
 	}
 
-	void HandleEOF(std::shared_ptr<StreamBuffer> stream_buffer) override {
+	void HandleEOF(std::shared_ptr<StreamBuffer>) override {
 		Dec();
 	}
 };
@@ -407,7 +407,7 @@ public:
 		Dec();
 	}
 
-	void HandleConnected(std::shared_ptr<StreamBuffer> stream_buffer) override {
+	void HandleConnected(std::shared_ptr<StreamBuffer>) override {
 		Dec();
 	}
 

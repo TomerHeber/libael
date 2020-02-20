@@ -5,13 +5,19 @@
  *      Author: tomer
  */
 
-#include <cstring>
-
+#include "config.h"
 #include "stream_buffer.h"
 #include "tcp_stream_buffer_filter.h"
 #include "async_io.h"
 #include "log.h"
-#include "config.h"
+
+#ifdef HAVE_SYS_TYPES_H
+#include <sys/types.h>
+#endif
+
+#ifdef HAVE_SYS_SOCKET_H
+#include <sys/socket.h>
+#endif
 
 namespace ael {
 
@@ -272,6 +278,15 @@ bool StreamBuffer::IsWriteClosed() const {
 
 int StreamBuffer::GetFlags() const {
 	return stream_filters_.back()->GetFlags();
+}
+
+std::shared_ptr<StreamBuffer> StreamBuffer::CreateForClient(std::shared_ptr<StreamBufferHandler> stream_buffer_handler, const std::string &ip_addr, std::uint16_t port) {
+	bool is_connected;
+	auto handle = Handle::CreateStreamHandle(ip_addr, port, is_connected);
+	std::shared_ptr<StreamBuffer> stream_buffer(new StreamBuffer(stream_buffer_handler, handle, CLIENT_MODE));
+	auto tcp_stream_buffer_filter = TCPStreamBufferFilter::Create(stream_buffer, handle, is_connected);
+	stream_buffer->AddStreamBufferFilter(tcp_stream_buffer_filter);
+	return stream_buffer;
 }
 
 std::ostream& operator<<(std::ostream &out, const StreamBufferFilter *filter) {

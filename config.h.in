@@ -1,0 +1,47 @@
+/*
+ * config.h
+ *
+ *  Created on: Feb 6, 2020
+ *      Author: tomer
+ */
+
+#ifndef LIB_CONFIG_H_
+#define LIB_CONFIG_H_
+
+#define LIBAEL_VERSION_MAJOR @libael_VERSION_MAJOR@
+#define LIBAEL_VERSION_MINOR @libael_VERSION_MINOR@
+
+#cmakedefine HAVE_UNISTD_H
+#cmakedefine HAVE_SYS_SOCKET_H
+#cmakedefine HAVE_SYS_TYPES_H
+#cmakedefine HAVE_ARPA_INET_H
+#cmakedefine HAVE_SYS_EPOLL_H
+#cmakedefine HAVE_SYS_EVENTFD_H
+#cmakedefine HAVE_SYS_TIMERFD_H
+#cmakedefine HAVE_ACCEPT4
+
+#include <cstdint>
+
+namespace ael {
+
+#define GLOBAL_CONFIG Config::_config
+
+class Config {
+public:
+	virtual ~Config();
+
+	int listen_backlog_;
+	int listen_starvation_limit_;
+	int read_starvation_limit_;
+	int write_starvation_limit_;
+	std::uint32_t interval_occurrences_limit_;
+
+	static Config _config;
+
+private:
+	Config();
+};
+
+} /* namespace ael */
+
+#endif /* LIB_CONFIG_H_ */

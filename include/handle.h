@@ -13,6 +13,8 @@
 
 namespace ael {
 
+
+
 class Handle {
 public:
 	Handle() : fd_(-1) {}
@@ -26,6 +28,7 @@ public:
 
 	static Handle CreateTimerHandle(const std::chrono::nanoseconds &interval, const std::chrono::nanoseconds &value);
 	static Handle CreateStreamListenerHandle(const std::string &ip_addr, std::uint16_t port);
+	static Handle CreateStreamHandle(const std::string &ip_addr, std::uint16_t port, bool &is_connected);
 
 	void Close();
 private:

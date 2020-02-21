@@ -5,12 +5,21 @@ project(libael
 	DESCRIPTION "asynchronous event loop library"
 	LANGUAGES CXX)
 
-include(CTest)
+option(BUILD_SHARED_LIBS "Build using shared libraries" ON)
 
-include_directories(include)
+include(GNUInstallDirs)
 
+include(InstallRequiredSystemLibraries)
+set(CPACK_PROJECT_URL "https://github.com/TomerHeber/libael")
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
+set(CPACK_PACKAGE_DESCRIPTION_FILE "${CMAKE_CURRENT_SOURCE_DIR}/README.md")
+set(CPACK_PACKAGE_VERSION_MAJOR "${libael_VERSION_MAJOR}")
+set(CPACK_PACKAGE_VERSION_MINOR "${libael_VERSION_MINOR}")
+set(CPACK_PACKAGE_CONTACT "heber.tomer@gmail.com")
+set(CPACK_PACKAGE_VENDOR, "Tomer Heber")
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
+include(CPack)
 
 include(CheckIncludeFileCXX)
 check_include_file_cxx(unistd.h HAVE_UNISTD_H)
@@ -35,12 +44,13 @@ add_subdirectory(lib)
 find_package(OpenSSL 1.1.0)
 
 if (OPENSSL_FOUND)
-message (STATUS "OpenSSL found")
-add_subdirectory(lib/openssl)
+	message (STATUS "OpenSSL found")
+	add_subdirectory(lib/openssl)
 else() 
-message (STATUS "OpenSSL Not found.")
+	message (STATUS "OpenSSL Not found.")
 endif()
 
+include(CTest)
 if(BUILD_TESTING)
-add_subdirectory(tests)
+	add_subdirectory(tests)
 endif()

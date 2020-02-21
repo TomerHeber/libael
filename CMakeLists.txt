@@ -5,6 +5,8 @@ project(libael
 	DESCRIPTION "asynchronous event loop library"
 	LANGUAGES CXX)
 
+include(CTest)
+
 include_directories(include)
 
 set(CMAKE_CXX_STANDARD 14)
@@ -39,5 +41,6 @@ else()
 message (STATUS "OpenSSL Not found.")
 endif()
 
-enable_testing()
+if(BUILD_TESTING)
 add_subdirectory(tests)
+endif()

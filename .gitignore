@@ -29,3 +29,5 @@ core
 include/config.h
 build-dir
 config.log
+.vscode
+build

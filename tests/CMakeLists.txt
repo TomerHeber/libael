@@ -14,12 +14,8 @@ if(result)
 	message(FATAL_ERROR "Build step for googletest failed: ${result}")
 endif()
 
-# Prevent overriding the parent project's compiler/linker
-# settings on Windows
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 
-# Add googletest directly to our build. This defines
-# the gtest and gtest_main targets.
 add_subdirectory(${CMAKE_CURRENT_BINARY_DIR}/googletest-src
                  ${CMAKE_CURRENT_BINARY_DIR}/googletest-build
                  EXCLUDE_FROM_ALL)
@@ -35,10 +31,3 @@ add_test(NAME execute_test COMMAND execute)
 add_executable(tcp tcp_test.cc helpers.cc)
 target_link_libraries(tcp ael gtest_main)
 add_test(NAME tcp_test COMMAND tcp)
-
-if (OPENSSL_FOUND)
-	file(COPY fake1.crt fake1.key DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/tests_data)
-	add_executable(ssl ssl_test.cc helpers.cc)
-	target_link_libraries(ssl ael ael_openssl gtest_main ${OPENSSL_SSL_LIBRARY})
-	add_test(NAME ssl_test COMMAND ssl WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/tests_data)
-endif()

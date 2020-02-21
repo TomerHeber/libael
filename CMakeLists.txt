@@ -41,16 +41,29 @@ endif()
 
 add_subdirectory(lib)
 
-find_package(OpenSSL 1.1.0)
-
-if (OPENSSL_FOUND)
-	message (STATUS "OpenSSL found")
-	add_subdirectory(lib/openssl)
-else() 
-	message (STATUS "OpenSSL Not found.")
-endif()
-
 include(CTest)
 if(BUILD_TESTING)
 	add_subdirectory(tests)
 endif()
+
+install(EXPORT libael_targets
+	FILE libael_targets.cmake
+	DESTINATION lib/cmake/libael)
+
+include(CMakePackageConfigHelpers)
+
+configure_package_config_file(${CMAKE_CURRENT_SOURCE_DIR}/Config.cmake.in
+	"${CMAKE_CURRENT_BINARY_DIR}/libaelConfig.cmake"
+	INSTALL_DESTINATION "lib/cmake/libael"
+	NO_SET_AND_CHECK_MACRO
+	NO_CHECK_REQUIRED_COMPONENTS_MACRO)
+
+write_basic_package_version_file(
+	"${CMAKE_CURRENT_BINARY_DIR}/libaelConfigVersion.cmake"
+	VERSION "${libael_VERSION_MAJOR}.${libael_VERSION_MINOR}"
+	COMPATIBILITY AnyNewerVersion)
+
+install(FILES
+	${CMAKE_CURRENT_BINARY_DIR}/libaelConfig.cmake
+	${CMAKE_CURRENT_BINARY_DIR}/libaelConfigVersion.cmake
+	DESTINATION lib/cmake/libael)

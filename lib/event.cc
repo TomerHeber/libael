@@ -36,14 +36,14 @@ std::ostream& operator<<(std::ostream &out, const Event *event) {
 	return out;
 }
 
-int Event::GetFlags() const {
+Events Event::GetEvents() const {
 	auto event_handler = event_handler_.lock();
 	if (!event_handler) {
-		LOG_WARN("event get flags called but event handler deleted " << this);
+		LOG_WARN("event get events called but event handler deleted " << this);
 		return 0;
 	}
 
-	return event_handler->GetFlags();
+	return event_handler->GetEvents();
 }
 
 void Event::Close() {
@@ -54,10 +54,10 @@ void Event::Close() {
 	}
 }
 
-void Event::Ready(int flags) {
+void Event::Ready(Events events) {
 	auto event_loop = event_loop_.lock();
 	if (event_loop) {
-		event_loop->Ready(shared_from_this(), flags);
+		event_loop->Ready(shared_from_this(), events);
 	} else {
 		LOG_WARN("event ready called but event loop deleted " << this);
 	}
@@ -97,10 +97,10 @@ EventHandler::~EventHandler() {
 	}
 }
 
-void EventHandler::ReadyEvent(int flags) {
+void EventHandler::ReadyEvent(Events events) {
 	if (event_) {
-		LOG_TRACE("event handler ready " << this << " flags=" << flags);
-		event_->Ready(flags);
+		LOG_TRACE("event handler ready " << this << " events=" << events);
+		event_->Ready(events);
 	}
 }
 

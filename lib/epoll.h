@@ -24,14 +24,14 @@ public:
 
 private:
 	struct ReadyEvent {
-		std::uint32_t flags;
+		Events events;
 		std::shared_ptr<Event> event;
 	};
 
 	void Add(std::shared_ptr<Event> event) override;
 	void Modify(std::shared_ptr<Event> event) override;
 	void Remove(std::shared_ptr<Event> event) override;
-	void Ready(std::shared_ptr<Event> event, int flags) override;
+	void Ready(std::shared_ptr<Event> event, Events events) override;
 	void Wakeup() override;
 	void Process() override;
 

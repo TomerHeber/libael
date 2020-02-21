@@ -71,7 +71,7 @@ private:
 
 	void Run();
 	void Remove(std::uint64_t id);
-	void Ready(std::shared_ptr<Event> event, int flags);
+	void Ready(std::shared_ptr<Event> event, Events events);
 	void Modify(std::shared_ptr<Event> event);
 	void Stop();
 
@@ -95,8 +95,8 @@ private:
 		virtual ~ExecuteHandler();
 
 	private:
-		void HandleEvents(Handle handle, std::uint32_t events) override;
-		int GetFlags() const override { return 0; }
+		void HandleEvents(Handle handle, Events events) override;
+		Events GetEvents() const override { return 0; }
 
 		std::function<void()> func_;
 		std::weak_ptr<void> instance_;
@@ -109,8 +109,8 @@ private:
 
 		virtual ~TimerHandler();
 	private:
-		void HandleEvents(Handle handle, std::uint32_t events) override;
-		int GetFlags() const override;
+		void HandleEvents(Handle handle, Events events) override;
+		Events GetEvents() const override;
 		void Cancel() override;
 
 		bool run_once_;

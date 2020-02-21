@@ -33,8 +33,8 @@ public:
 private:
 	StreamListener(std::shared_ptr<NewConnectionHandler> new_connection_handler, Handle handle);
 
-	void HandleEvents(Handle handle, std::uint32_t events) override;
-	int GetFlags() const override;
+	void HandleEvents(Handle handle, Events events) override;
+	Events GetEvents() const override;
 
 	std::weak_ptr<NewConnectionHandler> new_connection_handler_;
 };

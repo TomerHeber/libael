@@ -12,10 +12,6 @@
 #include "event_loop.h"
 #include "config.h"
 
-#ifdef HAVE_SYS_EPOLL_H
-#include <sys/epoll.h>
-#endif
-
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
@@ -114,12 +110,12 @@ void EventLoop::Remove(std::uint64_t id) {
 	async_io_->Remove(event);
 }
 
-void EventLoop::Ready(std::shared_ptr<Event> event, int flags) {
+void EventLoop::Ready(std::shared_ptr<Event> event, Events events) {
 	auto event_id = event->GetID();
 
-	LOG_TRACE("readying an event id=" << event_id << " flags=" << flags);
+	LOG_TRACE("readying an event id=" << event_id << " events=" << events);
 
-	async_io_->Ready(event, flags);
+	async_io_->Ready(event, events);
 }
 
 void EventLoop::Modify(std::shared_ptr<Event> event) {
@@ -172,13 +168,13 @@ void EventLoop::RemoveInternal(std::shared_ptr<EventHandler> event_handler) {
 	}
 }
 
-void EventLoop::TimerHandler::HandleEvents(Handle handle, std::uint32_t events) {
+void EventLoop::TimerHandler::HandleEvents(Handle handle, Events events) {
 	if (canceled_) {
 		LOG_TRACE("cannot handle timer canceled " << this);
 		return;
 	}
 
-	if (!(events & EPOLLIN)) {
+	if (!(events & Events::Read)) {
 		LOG_WARN("received an unexpected events " << this << " events=" << events);
 		return;
 	}
@@ -228,10 +224,7 @@ EventLoop::ExecuteHandler::~ExecuteHandler() {
 	LOG_TRACE("execute handler is destroyed");
 }
 
-void EventLoop::ExecuteHandler::HandleEvents(Handle handle, std::uint32_t events) {
-	std::ignore = handle;
-	std::ignore = events;
-
+void EventLoop::ExecuteHandler::HandleEvents(Handle, Events) {
 	auto instance = instance_.lock();
 	if (instance) {
 		func_();
@@ -261,8 +254,8 @@ std::shared_ptr<Cancellable> EventLoop::TimerHandler::Create(const std::chrono::
 	return std::make_shared<TimerHandler>(handle, interval.count() == 0, func, instance);
 }
 
-int EventLoop::TimerHandler::GetFlags() const {
-	return READ_FLAG;
+Events EventLoop::TimerHandler::GetEvents() const {
+	return Events::Read;
 }
 
 void EventLoop::TimerHandler::Cancel() {

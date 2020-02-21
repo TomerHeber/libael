@@ -75,9 +75,7 @@ void StreamBuffer::AddStreamBufferFilter(std::shared_ptr<StreamBufferFilter> str
 	stream_filters_.push_back(stream_filter);
 }
 
-void StreamBuffer::HandleEvents(Handle handle, std::uint32_t events) {
-	std::ignore = handle;
-
+void StreamBuffer::HandleEvents(Handle, Events events) {
 	LOG_TRACE("handling events " << this << " events=" << events);
 
 	auto stream_buffer_handler = stream_buffer_handler_.lock();
@@ -120,14 +118,14 @@ void StreamBuffer::Write(const DataView &data_view) {
 	pending_writes_lock_.unlock();
 
 	if (send_write_ready) {
-		ReadyEvent(WRITE_FLAG);
+		ReadyEvent(Events::Write);
 	}
 }
 
 void StreamBuffer::Close() {
 	LOG_DEBUG("close invoked " << this);
 	should_close_ = true;
-	ReadyEvent(CLOSE_FLAG);
+	ReadyEvent(Events::Close);
 }
 
 void StreamBuffer::DoRead() {
@@ -276,8 +274,8 @@ bool StreamBuffer::IsWriteClosed() const {
 	return true;
 }
 
-int StreamBuffer::GetFlags() const {
-	return stream_filters_.back()->GetFlags();
+Events StreamBuffer::GetEvents() const {
+	return stream_filters_.back()->GetEvents();
 }
 
 std::shared_ptr<StreamBuffer> StreamBuffer::CreateForClient(std::shared_ptr<StreamBufferHandler> stream_buffer_handler, const std::string &ip_addr, std::uint16_t port) {
@@ -406,11 +404,11 @@ void StreamBufferFilter::HandleData(const std::shared_ptr<const DataView> &data_
 	stream_buffer_handler->HandleData(stream_buffer, data_view);
 }
 
-int StreamBufferFilter::GetFlags() const {
+Events StreamBufferFilter::GetEvents() const {
 	if (connected_ || order_ > 0) {
-		return READ_FLAG | WRITE_FLAG | STREAM_FLAG;
+		return Events::Read | Events::Write | Events::Stream;
 	} else {
-		return WRITE_FLAG | STREAM_FLAG;
+		return Events::Write | Events::Stream;
 	}
 }
 

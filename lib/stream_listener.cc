@@ -10,10 +10,6 @@
 #include "async_io.h"
 #include "log.h"
 
-#ifdef HAVE_SYS_EPOLL_H
-#include <sys/epoll.h>
-#endif
-
 #ifdef HAVE_SYS_TYPES_H
 #include <sys/types.h>
 #endif
@@ -42,12 +38,12 @@ std::shared_ptr<StreamListener> StreamListener::Create(std::shared_ptr<NewConnec
 	return std::shared_ptr<StreamListener>(new StreamListener(new_connection_handler, handle));
 }
 
-int StreamListener::GetFlags() const {
-	return READ_FLAG;
+Events StreamListener::GetEvents() const {
+	return Events::Read;
 }
 
-void StreamListener::HandleEvents(Handle handle, std::uint32_t events) {
-	if (!(events & EPOLLIN)) {
+void StreamListener::HandleEvents(Handle handle, Events events) {
+	if (!(events & Events::Read)) {
 		LOG_WARN("received an non EPOLLIN event for a listener " << this << " events=" << events);
 		return;
 	}
@@ -93,7 +89,7 @@ void StreamListener::HandleEvents(Handle handle, std::uint32_t events) {
 
 	LOG_DEBUG("listener reached starvation limit " << this);
 
-	ReadyEvent(READ_FLAG);
+	ReadyEvent(Events::Read);
 }
 
 }

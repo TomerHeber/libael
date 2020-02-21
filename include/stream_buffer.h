@@ -124,7 +124,7 @@ private:
 	void Write(const std::list<std::shared_ptr<const DataView>> &write_list);
 	void Read();
 	void Close();
-	int GetFlags() const;
+	Events GetEvents() const;
 
 	friend StreamBuffer;
 };
@@ -148,8 +148,8 @@ private:
 
 	StreamBuffer(std::shared_ptr<StreamBufferHandler> stream_buffer_handler, Handle handle, StreamBufferMode mode);
 
-	void HandleEvents(Handle handle, std::uint32_t events) override;
-	int GetFlags() const override;
+	void HandleEvents(Handle handle, Events events) override;
+	Events GetEvents() const override;
 
 	void DoRead();
 	void DoWrite();

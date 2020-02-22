@@ -33,3 +33,5 @@ cmake --build . --target install
 * Filter support for stream buffers (libael OpenSSL filter is available at [libael-openssl](https://github.com/TomerHeber/libael-openssl)).
 
 > Additional features may be added in the future (please open feature requests).
+
+## Usage Samples

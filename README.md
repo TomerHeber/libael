@@ -22,7 +22,7 @@ cmake --build . --target install
 ## Platforms
 * Linux
 
-> Additional platforms may be added in the future.
+> Additional platforms may be added in the future (please open feature requests).
 
 ## Features
 

@@ -31,3 +31,5 @@ cmake --build . --target install
 * Event driven stream (TCP) listener.
 * Event driven stream (TCP) buffer.
 * Filter support for stream buffers (libael OpenSSL stream buffer is available at [libael-openssl](https://github.com/TomerHeber/libael-openssl)).
+
+> Additional features may be added in the future (please open feature requests).

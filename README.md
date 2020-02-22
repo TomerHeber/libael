@@ -35,6 +35,7 @@ cmake --build . --target install
 > Additional features may be added in the future (please open feature requests).
 
 ## Usage Samples
+Sample files are available in the [samples](samples/) directory
 #### Create an Event Loop and Execute Methods
 ###### Code
 ```c++

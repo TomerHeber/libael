@@ -1,6 +1,6 @@
 # libael
 
-An asynchronous event loop library written in C++, inspired by the C library [libevent](https://libevent.org).
+An asynchronous event loop library written in C++ and inspired by the C library [libevent](https://libevent.org).
 
 ## Install
 ```shell

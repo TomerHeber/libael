@@ -89,7 +89,7 @@ int main()
 [thread #139739746940736][ 101ms] sample ended
 ```
 
-Methods may be executed in the future or in intervals. They may also be cancled.
+Methods may be executed in the future or in intervals. They may also be canceled.
 ###### Code
 ```c++
 #include <iostream>
@@ -323,3 +323,5 @@ int main()
 [thread #140573172049664][   0ms] connection closed
 [thread #140573192685376][   1ms] ping client finished
 ```
+## Documentation
+At the moment there is no documentation available. For any questions or concerns please open an issue. Documentation will be added in time.

@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 
 project(libael
-	VERSION 0.2
+	VERSION 0.2.0
 	DESCRIPTION "asynchronous event loop library"
 	LANGUAGES CXX)
 
@@ -15,6 +15,7 @@ set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
 set(CPACK_PACKAGE_DESCRIPTION_FILE "${CMAKE_CURRENT_SOURCE_DIR}/README.md")
 set(CPACK_PACKAGE_VERSION_MAJOR "${libael_VERSION_MAJOR}")
 set(CPACK_PACKAGE_VERSION_MINOR "${libael_VERSION_MINOR}")
+set(CPACK_PACKAGE_VERSION_PATCH "${libael_VERSION_PATCH}")
 set(CPACK_PACKAGE_CONTACT "heber.tomer@gmail.com")
 set(CPACK_PACKAGE_VENDOR, "Tomer Heber")
 set(CMAKE_CXX_STANDARD 14)
@@ -60,7 +61,7 @@ configure_package_config_file(${CMAKE_CURRENT_SOURCE_DIR}/Config.cmake.in
 
 write_basic_package_version_file(
 	"${CMAKE_CURRENT_BINARY_DIR}/libaelConfigVersion.cmake"
-	VERSION "${libael_VERSION_MAJOR}.${libael_VERSION_MINOR}"
+	VERSION "${libael_VERSION_MAJOR}.${libael_VERSION_MINOR}.${libael_VERSION_PATCH}"
 	COMPATIBILITY AnyNewerVersion)
 
 install(FILES

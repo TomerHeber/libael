@@ -202,9 +202,9 @@ public:
         }
     }
 
-	void HandleConnected(std::shared_ptr<StreamBuffer>) override { /* required for filters (check libael_openssl) */ }
+    void HandleConnected(std::shared_ptr<StreamBuffer>) override {}
 
-	void HandleEOF(std::shared_ptr<StreamBuffer> stream_buffer) override {
+    void HandleEOF(std::shared_ptr<StreamBuffer> stream_buffer) override {
         cout << elapsed << "connection closed" << endl;
         streams_buffers_.erase(stream_buffer);
     }

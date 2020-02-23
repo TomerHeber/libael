@@ -276,13 +276,13 @@ public:
         }
     }
 
-	void HandleConnected(std::shared_ptr<StreamBuffer> stream_buffer) override { 
+    void HandleConnected(std::shared_ptr<StreamBuffer> stream_buffer) override { 
         // After connected, write "ping" to server.
         cout << elapsed << "connected, sending ping" << endl;
         stream_buffer->Write(string("ping"));
     }
 
-	void HandleEOF(std::shared_ptr<StreamBuffer> stream_buffer) override {
+    void HandleEOF(std::shared_ptr<StreamBuffer> stream_buffer) override {
         cout << elapsed << "connection closed" << endl;
         // Release the "main" thread.
         done_promise_->set_value();

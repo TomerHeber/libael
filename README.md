@@ -30,7 +30,7 @@ cmake --build . --target install
 * Execute a function in the context of an event loop thread.
 * Event driven stream listener (TCP).
 * Event driven stream buffer (TCP).
-* Filter support for stream buffers (libael OpenSSL filter is available at [libael-openssl](https://github.com/TomerHeber/libael-openssl)).
+* Filter support for stream buffers (libael OpenSSL filter is available at [libael_openssl](https://github.com/TomerHeber/libael_openssl)).
 
 > Additional features may be added in the future (please open feature requests).
 
